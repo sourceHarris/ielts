@@ -1,0 +1,99 @@
+/* IELTS Practice Room — light-first, two manually selected themes.
+   A neutral content layer, with red reserved for primary actions and emphasis. */
+:root,
+:root[data-theme="light"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 400;
+  color-scheme: light;
+
+  --canvas: #F8F8F8;
+  --surface: #FFFFFF;
+  --surface-muted: #F2F2F2;
+  --ink: #171717;
+  --muted: #4D4D4D;
+  --subtle: #606060;
+  --border: #DEDEDE;
+  --accent: #B42330;
+  --accent-hover: #911A25;
+  --accent-surface: #FCECEE;
+  --accent-ink: #A51F2A;
+  --focus-ring: #B42330;
+  --success: #176B46;
+  --success-surface: #E7F5EC;
+  --sidebar-glass: rgba(255,255,255,.87);
+  --bottom-glass: rgba(255,255,255,.92);
+  --hero-bg: #FFFFFF;
+  --hero-bg-deep: #F9F9F9;
+  --hero-ink: #171717;
+  --hero-muted: #4D4D4D;
+  --hero-accent: #B42330;
+  --hero-glow: rgba(180,35,48,.085);
+  --hero-border: #E1DCDD;
+  --hero-action-bg: #B42330;
+  --hero-action-hover: #911A25;
+  --hero-action-ink: #FFFFFF;
+  --sheet-bg: #FFFFFF;
+  --sheet-ink: #171717;
+  --sheet-muted: #606060;
+  --sheet-lines: #E8E8E8;
+  --sheet-border: #E1E1E1;
+  --button-ink: #FFFFFF;
+  --paper-shadow: rgba(0,0,0,.12);
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #101010;
+  --surface: #1B1B1B;
+  --surface-muted: #272727;
+  --ink: #F7F7F7;
+  --muted: #CCCCCC;
+  --subtle: #B0B0B0;
+  --border: #393939;
+  --accent: #B42330;
+  --accent-hover: #991C27;
+  --accent-surface: #361B1F;
+  --accent-ink: #FF8990;
+  --focus-ring: #FF8990;
+  --success: #A1E9C2;
+  --success-surface: #153424;
+  --sidebar-glass: rgba(20,20,20,.89);
+  --bottom-glass: rgba(26,26,26,.93);
+  --hero-bg: #202020;
+  --hero-bg-deep: #181818;
+  --hero-ink: #FFFFFF;
+  --hero-muted: #D2D2D2;
+  --hero-accent: #FF8C93;
+  --hero-glow: rgba(180,35,48,.16);
+  --hero-border: #434343;
+  --hero-action-bg: #B42330;
+  --hero-action-hover: #991C27;
+  --hero-action-ink: #FFFFFF;
+  --sheet-bg: #262626;
+  --sheet-ink: #FAFAFA;
+  --sheet-muted: #C2C2C2;
+  --sheet-lines: #393939;
+  --sheet-border: #4B4B4B;
+  --button-ink: #FFFFFF;
+  --paper-shadow: rgba(0,0,0,.3);
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; background: var(--canvas); }
+body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); }
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+::selection { background: var(--accent-surface); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

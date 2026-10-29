@@ -1,0 +1,61 @@
+/* Unified practice library. Source indicators intentionally have no visible legend. */
+.unified-practice-page .page-intro { margin-bottom: 26px; }
+.unified-skill-filters { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 24px; }
+.unified-filter {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 9px 16px;
+  border: 1px solid var(--border); border-radius: 11px;
+  background: var(--surface); color: var(--ink);
+  font-size: 14px; font-weight: 570;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.unified-filter:hover { border-color: var(--accent); }
+.unified-filter-active { border-color: var(--accent); background: var(--accent-surface); color: var(--accent-ink); font-weight: 710; }
+.unified-practice-list { display: grid; gap: 12px; }
+.unified-practice-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 25px;
+  min-width: 0; padding: 24px 25px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.unified-practice-card:hover { border-color: var(--accent); box-shadow: 0 8px 24px var(--paper-shadow); }
+.unified-practice-content { flex: 1; min-width: 0; }
+.unified-practice-heading { display: flex; align-items: start; gap: 13px; }
+.unified-practice-titles { min-width: 0; }
+.unified-practice-source {
+  margin: 0 0 5px; color: var(--muted);
+  font-size: 12px; font-weight: 640; line-height: 1.35;
+}
+.unified-practice-card h2 { margin: 0; font-size: clamp(18px, 2vw, 22px); line-height: 1.25; }
+.unified-source-dot {
+  display: block; flex: 0 0 13px; width: 13px; height: 13px;
+  border-radius: 50%; margin-top: 5px;
+}
+.unified-source-dot-cyan { background: #22CAE2; border: 1px solid #08798B; }
+.unified-source-dot-dark { background: #111111; border: 1px solid #111111; }
+:root[data-theme="dark"] .unified-source-dot-dark { border: 2px solid #D4D4D4; background: #111111; }
+.unified-practice-description {
+  font-size: 14px; line-height: 1.65; margin: 11px 0 14px 26px;
+  color: var(--muted); max-width: 650px;
+}
+.unified-practice-details { display: flex; flex-wrap: wrap; gap: 7px; margin-left: 26px; }
+.unified-practice-details span {
+  display: inline-flex; align-items: center; min-height: 26px;
+  padding: 3px 9px; font-size: 12px; color: var(--muted);
+  background: var(--surface-muted); border-radius: 7px;
+}
+.unified-practice-action { flex: 0 0 auto; white-space: nowrap; }
+.unified-practice-footnote { margin: 24px 0 0; max-width: 680px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+@media (max-width: 760px) {
+  .unified-practice-card { align-items: stretch; flex-direction: column; gap: 19px; padding: 22px 20px; }
+  .unified-practice-action { align-self: stretch; }
+}
+@media (max-width: 440px) {
+  .unified-filter { padding: 9px 12px; }
+  .unified-practice-heading { gap: 11px; }
+  .unified-practice-description, .unified-practice-details { margin-left: 24px; }
+}
+@media (forced-colors: active) {
+  .unified-source-dot { border: 2px solid CanvasText; }
+  .unified-filter-active { outline: 2px solid Highlight; }
+}
