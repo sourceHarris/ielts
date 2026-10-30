@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Clock3, RotateCcw, ShieldCheck } from 'lucide-react'
 import { cityShadeTest } from './reading/miniTest'
-import { normalizeAnswer } from './readingPracticeData'
+import { gradeReadingTest } from './reading/grading'
 import './ReadingPractice.css'
 
 
@@ -19,14 +19,6 @@ const miniQuestions = firstPassage.questions.map((question) => ({
   correct: question.correctAnswers[0] ?? '',
   explanation: question.explanation,
 }))
-
-function isCorrectAnswer(id: number, answer?: string): boolean {
-  const question = miniQuestions.find((item) => item.id === id)
-
-  if (!question || !answer) return false
-
-  return normalizeAnswer(answer) === normalizeAnswer(question.correct)
-}
 
 
 type Draft = { startedAt: number; answers: Record<number, string>; submitted: boolean }
@@ -56,8 +48,24 @@ export default function ReadingPractice({ onComplete }: { onComplete: (attempt: 
   const completed = useRef(draft.submitted)
   const [saveOk, setSaveOk] = useState(true)
   const remainingSeconds = Math.max(0, Math.ceil((draft.startedAt + TEST_DURATION - now) / 1000))
-  const answered = miniQuestions.filter(q => (draft.answers[q.id] ?? '').trim() !== '').length
-  const correct = miniQuestions.filter(q => isCorrectAnswer(q.id, draft.answers[q.id])).length
+  // Existing saved answers use numeric question numbers. Our reusable grader
+  // expects stable string question IDs, so translate them before grading.
+  const result = gradeReadingTest(
+    cityShadeTest,
+    Object.fromEntries(
+      firstPassage.questions.map(question => [
+        question.id,
+        draft.answers[question.number] ?? '',
+      ])
+    )
+  )
+
+  const answered = result.total - result.unanswered
+  const correct = result.correct
+
+function questionCorrect(id: number): boolean {
+    return result.questions.find(question => question.questionNumber === id)?.isCorrect ?? false
+  }
   const minutes = Math.floor(remainingSeconds / 60)
   const seconds = remainingSeconds % 60
 
@@ -77,8 +85,8 @@ export default function ReadingPractice({ onComplete }: { onComplete: (attempt: 
     if (draft.submitted || remainingSeconds > 0 || completed.current) return
     completed.current = true
     setDraft(current => ({ ...current, submitted: true }))
-    onComplete({ completedAt: new Date().toISOString(), correct, total: miniQuestions.length, kind: 'reading-mini' })
-  }, [draft.submitted, remainingSeconds, correct, onComplete])
+    onComplete({ completedAt: new Date().toISOString(), correct, total: result.total, kind: 'reading-mini' })
+  }, [draft.submitted, remainingSeconds, correct, result.total, onComplete])
 
   function choose(id: number, answer: string) {
     if (draft.submitted) return
@@ -90,7 +98,7 @@ export default function ReadingPractice({ onComplete }: { onComplete: (attempt: 
     if (answered < miniQuestions.length && !window.confirm(`${miniQuestions.length - answered} question(s) are unanswered. Submit anyway?`)) return
     completed.current = true
     setDraft(previous => ({ ...previous, submitted: true }))
-    onComplete({ completedAt: new Date().toISOString(), correct, total: miniQuestions.length, kind: 'reading-mini' })
+    onComplete({ completedAt: new Date().toISOString(), correct, total: result.total, kind: 'reading-mini' })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -117,7 +125,7 @@ export default function ReadingPractice({ onComplete }: { onComplete: (attempt: 
       </header>
       {draft.submitted && (
         <section className="reading-result" aria-live="polite">
-          <div><p className="eyebrow">MINI-TEST RESULT</p><h2>{correct} / {miniQuestions.length} correct</h2><p>This is a raw practice score, not an official IELTS band. Review the evidence beside each answer.</p></div>
+          <div><p className="eyebrow">MINI-TEST RESULT</p><h2>{correct} / {result.total} correct</h2><p>This is a raw practice score, not an official IELTS band. Review the evidence beside each answer.</p></div>
           <button type="button" className="button button-secondary" onClick={restart}><RotateCcw size={17} aria-hidden="true" /> New attempt</button>
         </section>
       )}
@@ -157,8 +165,8 @@ export default function ReadingPractice({ onComplete }: { onComplete: (attempt: 
                   ))}
                 </div>
               )}
-              {draft.submitted && <div className={`reading-explanation ${isCorrectAnswer(question.id, draft.answers[question.id]) ? 'is-correct' : ''}`}>
-                <strong>{isCorrectAnswer(question.id, draft.answers[question.id]) ? 'Correct' : 'Needs review'} · Answer: {question.correct}</strong>
+              {draft.submitted && <div className={`reading-explanation ${questionCorrect(question.id) ? 'is-correct' : ''}`}>
+                <strong>{questionCorrect(question.id) ? 'Correct' : 'Needs review'} · Answer: {question.correct}</strong>
                 <p>{question.explanation}</p>
               </div>}
             </fieldset>
