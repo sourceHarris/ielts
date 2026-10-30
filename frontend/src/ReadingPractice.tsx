@@ -1,7 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Clock3, RotateCcw, ShieldCheck } from 'lucide-react'
-import { MINI_TEST_MINUTES, miniPassage, miniQuestions, isCorrectAnswer } from './readingPracticeData'
+import { cityShadeTest } from './reading/miniTest'
+import { normalizeAnswer } from './readingPracticeData'
 import './ReadingPractice.css'
+
+
+const firstPassage = cityShadeTest.passages[0]
+
+const MINI_TEST_MINUTES = cityShadeTest.durationMinutes
+const miniPassage = firstPassage.paragraphs
+
+// Temporary adapter: lets the existing interface use our new test format.
+const miniQuestions = firstPassage.questions.map((question) => ({
+  id: question.number,
+  kind: question.type,
+  prompt: question.prompt,
+  options: question.options,
+  correct: question.correctAnswers[0] ?? '',
+  explanation: question.explanation,
+}))
+
+function isCorrectAnswer(id: number, answer?: string): boolean {
+  const question = miniQuestions.find((item) => item.id === id)
+
+  if (!question || !answer) return false
+
+  return normalizeAnswer(answer) === normalizeAnswer(question.correct)
+}
+
 
 type Draft = { startedAt: number; answers: Record<number, string>; submitted: boolean }
 export type ReadingAttempt = { completedAt: string; correct: number; total: number; kind: 'reading-mini' }
