@@ -22,13 +22,14 @@ import {
 import PracticeLibrary from './PracticeLibrary'
 import ReadingPractice from './ReadingPractice'
 import type { ReadingAttempt } from './ReadingPractice'
+import { twoPassageTest } from './reading/twoPassageTest'
 import './App.css'
 
 type Theme = 'light' | 'dark'
 type SkillId = 'reading' | 'listening' | 'writing' | 'speaking'
 type Answer = 'TRUE' | 'FALSE' | 'NOT GIVEN'
-type Page = 'overview' | 'practice' | 'progress' | 'reading-demo' | 'reading-mini' | `skill-${SkillId}`
-type DemoAttempt = { completedAt: string; correct: number; total: number; kind?: 'reading-demo' | 'reading-mini' }
+type Page = 'overview' | 'practice' | 'progress' | 'reading-demo' | 'reading-mini' | 'reading-two-passage' | `skill-${SkillId}`
+type DemoAttempt = { completedAt: string; correct: number; total: number; kind?: 'reading-demo' | 'reading-mini' | 'reading-two-passage' }
 
 const STORAGE_KEY = 'practice-room-reading-demo-v1'
 const THEME_STORAGE_KEY = 'practice-room-theme'
@@ -131,7 +132,7 @@ function readHistory(): DemoAttempt[] {
 function routeFromHash(): Page {
   const hash = window.location.hash.replace(/^#\/?/, '')
   if (hash === 'practice-ai' || hash === 'practice-official') return 'practice' // redirect older bookmarks
-  if (hash === 'practice' || hash === 'progress' || hash === 'reading-demo' || hash === 'reading-mini') return hash
+  if (hash === 'practice' || hash === 'progress' || hash === 'reading-demo' || hash === 'reading-mini' || hash === 'reading-two-passage') return hash
   const skill = hash.match(/^skill-(reading|listening|writing|speaking)$/)
   if (skill) return `skill-${skill[1] as SkillId}`
   return 'overview'
@@ -144,7 +145,7 @@ const navItems: Array<{ id: Page; title: string; icon: LucideIcon }> = [
 ]
 
 function Nav({ page, mobile = false }: { page: Page; mobile?: boolean }) {
-  const selected = page === 'reading-demo' || page === 'reading-mini' || page.startsWith('skill-') ? 'practice' : page
+  const selected = page === 'reading-demo' || page === 'reading-mini' || page === 'reading-two-passage' || page.startsWith('skill-') ? 'practice' : page
   return (
     <nav className={mobile ? 'bottom-nav' : 'sidebar-nav'} aria-label="Main navigation">
       {navItems.map(({ id, title, icon: Icon }) => (
@@ -315,7 +316,7 @@ function Progress({ history }: { history: DemoAttempt[] }) {
             <h2 id="history-title">Recent Reading practice</h2>
             {history.slice().reverse().slice(0, 8).map((item, index) => (
               <div className="history-row" key={`${item.completedAt}-${index}`}>
-                <div><strong>{item.kind === 'reading-mini' ? 'Reading mini-test' : 'Reading demo'}</strong><small>{new Date(item.completedAt).toLocaleString()}</small></div>
+                <div><strong>{item.kind === 'reading-two-passage' ? 'Two-passage Reading practice' : item.kind === 'reading-mini' ? 'Reading mini-test' : 'Reading demo'}</strong><small>{new Date(item.completedAt).toLocaleString()}</small></div>
                 <strong>{item.correct} / {item.total}</strong>
               </div>
             ))}
@@ -441,7 +442,8 @@ function App() {
         {page === 'practice' && <Practice />}
         {page === 'progress' && <Progress history={history}/>}
         {page === 'reading-demo' && <ReadingDemo onComplete={storeAttempt}/>}
-        {page === 'reading-mini' && <ReadingPractice onComplete={storeAttempt}/>}
+        {page === 'reading-mini' && <ReadingPractice key="mini" onComplete={storeAttempt}/>}
+        {page === 'reading-two-passage' && <ReadingPractice key="two-passage" test={twoPassageTest} onComplete={storeAttempt}/>}
         {page.startsWith('skill-') && <SkillDetail skillId={page.replace('skill-', '') as SkillId}/>}
         <footer className="site-footer"><span>Practice Room · Interface prototype</span><span>Built for clarity, accessibility, and focused learning.</span></footer>
       </main>

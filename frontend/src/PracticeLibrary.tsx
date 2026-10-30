@@ -30,6 +30,17 @@ const entries: LibraryEntry[] = [
     publisherHosted: false,
   },
   {
+    id: 'two-passage-pilot',
+    title: 'Reading Practice — Two Passages',
+    description: 'Two original passages with timed questions, saved answers and a detailed review.',
+    skills: ['Reading'],
+    source: 'Reading · Timed',
+    details: ['2 passages', '12 questions', '25 minutes', 'Saved answers'],
+    href: '#/reading-two-passage',
+    action: 'Start practice',
+    publisherHosted: false,
+  },
+  {
     id: 'idp',
     title: 'Computer familiarisation tests',
     description: 'Explore the IELTS computer format, with sample Reading and Listening tests and Writing tasks.',

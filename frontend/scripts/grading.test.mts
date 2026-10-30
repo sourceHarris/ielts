@@ -71,3 +71,40 @@ test('rejects wrong answers and returns explanations', () => {
     'The passage identifies mulch.'
   )
 })
+
+
+test('grades questions across multiple passages', () => {
+  const multiPassageTest: ReadingTest = {
+    ...sampleTest,
+    id: 'multi-passage-check',
+    passages: [
+      ...sampleTest.passages,
+      {
+        id: 'passage-2',
+        title: 'Second Passage',
+        paragraphs: ['The library opened in 1995.'],
+        questions: [
+          {
+            id: 'q3',
+            number: 3,
+            type: 'short',
+            prompt: 'In what year did the library open?',
+            correctAnswers: ['1995'],
+            explanation: 'The passage states that it opened in 1995.',
+          },
+        ],
+      },
+    ],
+  }
+
+  const result = gradeReadingTest(multiPassageTest, {
+    q1: 'mulch',
+    q2: 'TRUE',
+    q3: '1995',
+  })
+
+  assert.equal(result.total, 3)
+  assert.equal(result.correct, 3)
+  assert.equal(result.unanswered, 0)
+  assert.equal(result.questions[2].questionNumber, 3)
+})
