@@ -1,925 +1,440 @@
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   ArrowLeft,
-  ArrowRight,
+  BookOpen,
   Clock3,
   RotateCcw,
-  ShieldCheck,
 } from 'lucide-react'
 
+import ReadingExam from './ReadingExam'
+import type { ReadingAttempt } from './ReadingExam'
 import { cityShadeTest } from './reading/miniTest'
-import { gradeReadingTest } from './reading/grading'
-import PassageNavigator from './reading/PassageNavigator'
-import type {
-  ReadingQuestion,
-  ReadingTest,
-} from './reading/types'
+import type { ReadingTest } from './reading/types'
 
-import './ReadingPractice.css'
+export type { ReadingAttempt } from './ReadingExam'
 
-export type ReadingAttempt = {
-  completedAt: string
-  correct: number
-  total: number
-  kind: 'reading-mini' | 'reading-two-passage'
+type SessionStatus =
+  | 'new'
+  | 'active'
+  | 'finished'
+  | 'expired'
+
+type SessionInfo = {
+  status: SessionStatus
+  answered: number
 }
 
-type Draft = {
+type SavedDraft = {
   startedAt: number
   answers: Record<string, string>
   submitted: boolean
 }
 
-const OLD_MINI_DRAFT_KEY =
-  'practice-room-reading-mini-draft-v1'
-
-function draftKey(test: ReadingTest): string {
-  return test.id === cityShadeTest.id
-    ? OLD_MINI_DRAFT_KEY
-    : `practice-room-reading-${test.id}-draft-v1`
+type Props = {
+  onComplete: (attempt: ReadingAttempt) => void
+  test?: ReadingTest
 }
 
-function freshDraft(): Draft {
-  return {
-    startedAt: Date.now(),
-    answers: {},
-    submitted: false,
+function getDraftKey(test: ReadingTest): string {
+  if (test.id === cityShadeTest.id) {
+    return 'practice-room-reading-mini-draft-v1'
   }
+
+  return `practice-room-reading-${test.id}-draft-v1`
 }
 
-// Only headings from the same matching set must be unique.
-// Other matching sets may reuse Roman numerals.
-function sameHeadingSet(
-  a: ReadingQuestion,
-  b: ReadingQuestion
-): boolean {
-  if (
-    a.type !== 'matching-headings' ||
-    b.type !== 'matching-headings'
-  ) {
-    return false
+function getSessionInfo(test: ReadingTest): SessionInfo {
+  const empty: SessionInfo = {
+    status: 'new',
+    answered: 0,
   }
 
-  if (
-    !a.options?.length ||
-    !b.options ||
-    a.options.length !== b.options.length
-  ) {
-    return false
-  }
-
-  return a.options.every(
-    (option, index) =>
-      option.value === b.options![index].value &&
-      option.label === b.options![index].label
-  )
-}
-
-// Clean up duplicate headings from older unfinished drafts.
-function removeDuplicateHeadingChoices(
-  test: ReadingTest,
-  answers: Record<string, string>
-): Record<string, string> {
-  const cleaned = { ...answers }
-
-  for (const passage of test.passages) {
-    const headings = passage.questions.filter(
-      (question) => question.type === 'matching-headings'
-    )
-
-    for (let i = 0; i < headings.length; i++) {
-      const current = headings[i]
-
-      if (!cleaned[current.id]) continue
-
-      for (let j = 0; j < i; j++) {
-        const previous = headings[j]
-
-        if (
-          sameHeadingSet(current, previous) &&
-          cleaned[previous.id] === cleaned[current.id]
-        ) {
-          delete cleaned[previous.id]
-        }
-      }
-    }
-  }
-
-  return cleaned
-}
-
-function loadDraft(test: ReadingTest): Draft {
   try {
-    const saved = window.localStorage.getItem(
-      draftKey(test)
+    const raw = window.localStorage.getItem(
+      getDraftKey(test)
     )
 
-    if (!saved) return freshDraft()
+    if (!raw) return empty
 
-    const parsed: unknown = JSON.parse(saved)
+    const parsed: unknown = JSON.parse(raw)
 
     if (
       typeof parsed !== 'object' ||
       parsed === null
     ) {
-      return freshDraft()
+      return empty
     }
 
-    const candidate = parsed as Partial<Draft>
-    const startedAt = candidate.startedAt
+    const draft = parsed as Partial<SavedDraft>
 
     if (
-      typeof startedAt !== 'number' ||
-      !Number.isFinite(startedAt) ||
-      startedAt > Date.now() ||
-      startedAt <=
+      typeof draft.startedAt !== 'number' ||
+      !Number.isFinite(draft.startedAt) ||
+      draft.startedAt > Date.now() ||
+      draft.startedAt <=
         Date.now() - 30 * 24 * 60 * 60 * 1000 ||
-      typeof candidate.answers !== 'object' ||
-      candidate.answers === null ||
-      typeof candidate.submitted !== 'boolean'
+      typeof draft.answers !== 'object' ||
+      draft.answers === null ||
+      typeof draft.submitted !== 'boolean'
     ) {
-      return freshDraft()
+      return empty
     }
 
-    // Support older drafts that used numeric question IDs.
-    const storedAnswers =
-      candidate.answers as Record<string, unknown>
+    const answers = draft.answers as Record<
+      string,
+      unknown
+    >
 
-    const answers: Record<string, string> = {}
+    const answered = test.passages
+      .flatMap((passage) => passage.questions)
+      .filter((question) => {
+        const answer =
+          answers[question.id] ??
+          answers[String(question.number)]
 
-    for (const question of test.passages.flatMap(
-      (passage) => passage.questions
-    )) {
-      const savedAnswer =
-        storedAnswers[question.id] ??
-        storedAnswers[String(question.number)]
+        return (
+          typeof answer === 'string' &&
+          answer.trim().length > 0
+        )
+      }).length
 
-      if (typeof savedAnswer === 'string') {
-        answers[question.id] = savedAnswer
+    if (draft.submitted) {
+      return {
+        status: 'finished',
+        answered,
+      }
+    }
+
+    const expiresAt =
+      draft.startedAt +
+      test.durationMinutes * 60_000
+
+    if (Date.now() >= expiresAt) {
+      return {
+        status: 'expired',
+        answered,
       }
     }
 
     return {
-      startedAt,
-      answers: candidate.submitted
-        ? answers
-        : removeDuplicateHeadingChoices(test, answers),
-      submitted: candidate.submitted,
+      status: 'active',
+      answered,
     }
   } catch {
-    return freshDraft()
+    return empty
   }
-}
-
-const kindLabels: Record<
-  ReadingQuestion['type'],
-  string
-> = {
-  tfng: 'TRUE / FALSE / NOT GIVEN',
-  choice: 'MULTIPLE CHOICE',
-  short: 'SHORT ANSWERS',
-  'matching-headings': 'MATCHING HEADINGS',
-}
-
-function lastQuestionInGroup(
-  questions: ReadingQuestion[],
-  index: number
-): number {
-  let end = index
-
-  while (
-    end + 1 < questions.length &&
-    questions[end + 1].type === questions[index].type
-  ) {
-    end++
-  }
-
-  return questions[end].number
-}
-
-// Green review styling uses the existing success theme color.
-const correctAnswerStyle = {
-  borderColor: 'var(--success, #16803c)',
-  backgroundColor:
-    'color-mix(in srgb, var(--success, #16803c) 10%, var(--surface))',
 }
 
 export default function ReadingPractice({
   onComplete,
   test = cityShadeTest,
-}: {
-  onComplete: (attempt: ReadingAttempt) => void
-  test?: ReadingTest
-}) {
-  const [draft, setDraft] = useState<Draft>(
-    () => loadDraft(test)
+}: Props) {
+  const [session] = useState<SessionInfo>(
+    () => getSessionInfo(test)
   )
 
-  const [now, setNow] = useState(Date.now)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [saveOk, setSaveOk] = useState(true)
+  const [openExam, setOpenExam] = useState(false)
+  const [error, setError] = useState('')
 
-  const completed = useRef(draft.submitted)
-
-  const activePassage = test.passages[activeIndex]
-
-  const result = gradeReadingTest(
-    test,
-    draft.answers
+  const totalQuestions = test.passages.reduce(
+    (total, passage) =>
+      total + passage.questions.length,
+    0
   )
 
-  const resultsById = new Map(
-    result.questions.map((question) => [
-      question.questionId,
-      question,
-    ])
-  )
+  function startNew() {
+    if (
+      session.status === 'active' &&
+      session.answered > 0 &&
+      !window.confirm(
+        'Start over? Your unfinished answers will be cleared.'
+      )
+    ) {
+      return
+    }
 
-  const answered =
-    result.total - result.unanswered
-
-  const remainingSeconds = Math.max(
-    0,
-    Math.ceil(
-      (
-        draft.startedAt +
-        test.durationMinutes * 60_000 -
-        now
-      ) / 1000
-    )
-  )
-
-  const minutes = Math.floor(
-    remainingSeconds / 60
-  )
-
-  const seconds = remainingSeconds % 60
-
-  // Save answers in the browser.
-  useEffect(() => {
     try {
-      window.localStorage.setItem(
-        draftKey(test),
-        JSON.stringify(draft)
+      window.localStorage.removeItem(
+        getDraftKey(test)
       )
-
-      setSaveOk(true)
     } catch {
-      setSaveOk(false)
-    }
-  }, [draft, test])
-
-  // Update countdown.
-  useEffect(() => {
-    if (draft.submitted) return
-
-    const interval = window.setInterval(
-      () => setNow(Date.now()),
-      1000
-    )
-
-    return () => window.clearInterval(interval)
-  }, [draft.submitted])
-
-  // Submit automatically when time expires.
-  useEffect(() => {
-    if (
-      draft.submitted ||
-      remainingSeconds > 0 ||
-      completed.current
-    ) {
-      return
-    }
-
-    completed.current = true
-
-    setDraft((previous) => ({
-      ...previous,
-      submitted: true,
-    }))
-
-    onComplete({
-      completedAt: new Date().toISOString(),
-      correct: result.correct,
-      total: result.total,
-      kind:
-        test.id === cityShadeTest.id
-          ? 'reading-mini'
-          : 'reading-two-passage',
-    })
-  }, [
-    draft.submitted,
-    remainingSeconds,
-    result.correct,
-    result.total,
-    onComplete,
-    test.id,
-  ])
-
-  // Save a student's answer.
-  function choose(
-    questionId: string,
-    value: string
-  ) {
-    if (
-      draft.submitted ||
-      remainingSeconds === 0
-    ) {
-      return
-    }
-
-    const passage = test.passages.find(
-      (passage) =>
-        passage.questions.some(
-          (question) => question.id === questionId
+      if (session.status !== 'new') {
+        setError(
+          'Could not clear the saved attempt. Check browser storage permissions.'
         )
-    )
-
-    const question = passage?.questions.find(
-      (question) => question.id === questionId
-    )
-
-    setDraft((previous) => {
-      const answers = {
-        ...previous.answers,
-        [questionId]: value,
+        return
       }
+    }
 
-      // Matching Headings: move an already-used
-      // heading to the newly selected question.
-      if (
-        question?.type === 'matching-headings' &&
-        passage
-      ) {
-        for (const other of passage.questions) {
-          if (
-            other.id !== questionId &&
-            sameHeadingSet(question, other) &&
-            answers[other.id] === value
-          ) {
-            delete answers[other.id]
-          }
-        }
-      }
-
-      return {
-        ...previous,
-        answers,
-      }
-    })
+    setOpenExam(true)
   }
 
-  function finish() {
-    if (
-      draft.submitted ||
-      completed.current
-    ) {
-      return
-    }
-
-    if (
-      result.unanswered > 0 &&
-      !window.confirm(
-        `${result.unanswered} question(s) are unanswered. Submit anyway?`
-      )
-    ) {
-      return
-    }
-
-    completed.current = true
-
-    setDraft((previous) => ({
-      ...previous,
-      submitted: true,
-    }))
-
-    onComplete({
-      completedAt: new Date().toISOString(),
-      correct: result.correct,
-      total: result.total,
-      kind:
-        test.id === cityShadeTest.id
-          ? 'reading-mini'
-          : 'reading-two-passage',
-    })
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
+  function resumeOrReview() {
+    setOpenExam(true)
   }
 
-  function restart() {
-    if (
-      !window.confirm(
-        'Start a new test? This clears your answers for this attempt.'
+  function reviewExpired() {
+    try {
+      const key = getDraftKey(test)
+      const raw = window.localStorage.getItem(key)
+
+      if (!raw) {
+        setError('The previous attempt was not found.')
+        return
+      }
+
+      const draft = JSON.parse(raw) as SavedDraft
+
+      // Freeze the expired draft for review.
+      // Do not record an automatic score in Progress.
+      window.localStorage.setItem(
+        key,
+        JSON.stringify({
+          ...draft,
+          submitted: true,
+        })
       )
-    ) {
-      return
+
+      setOpenExam(true)
+    } catch {
+      setError(
+        'Could not open the expired attempt for review.'
+      )
     }
+  }
 
-    completed.current = false
-
-    setDraft(freshDraft())
-    setNow(Date.now())
-    setActiveIndex(0)
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
+  if (openExam) {
+    return (
+      <ReadingExam
+        test={test}
+        onComplete={onComplete}
+      />
+    )
   }
 
   return (
     <div className="page-section exam-page reading-mini">
-
       <a
         className="back-link"
         href="#/practice"
       >
-        <ArrowLeft
-          size={17}
-          aria-hidden="true"
-        />
+        <ArrowLeft size={17} aria-hidden="true" />
         All practice
       </a>
 
-      <header className="reading-mini-header">
-        <div>
-          <p className="eyebrow">
-            READING · ORIGINAL PRACTICE
-          </p>
+      <header className="page-intro">
+        <p className="eyebrow">
+          READING · ORIGINAL PRACTICE
+        </p>
 
-          <h1>
-            {draft.submitted
-              ? 'Review your answers'
-              : test.title}
-          </h1>
+        <h1>{test.title}</h1>
 
-          <p className="reading-mini-subtitle">
-            {result.total} questions ·{' '}
-            {test.durationMinutes} minutes ·{' '}
-            Not an official IELTS test
-          </p>
-        </div>
-
-        <div
-          className={`reading-clock ${
-            remainingSeconds <= 120 &&
-            !draft.submitted
-              ? 'reading-clock-urgent'
-              : ''
-          }`}
-          role="timer"
-          aria-label={
-            draft.submitted
-              ? 'Test finished'
-              : `${minutes} minutes and ${seconds} seconds remaining`
-          }
-        >
-          <Clock3
-            size={19}
-            aria-hidden="true"
-          />
-
-          <span>
-            {draft.submitted
-              ? 'Finished'
-              : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`}
-          </span>
-        </div>
+        <p className="intro-description">
+          Choose how you want to continue.
+          Your answers are stored in this browser.
+        </p>
       </header>
 
-      {draft.submitted && (
-        <section
-          className="reading-result"
-          aria-live="polite"
+      <section
+        className="paper-panel"
+        style={{
+          padding: 28,
+          maxWidth: 680,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 20,
+            flexWrap: 'wrap',
+          }}
         >
-          <div>
-            <p className="eyebrow">
-              PRACTICE RESULT
-            </p>
-
-            <h2>
-              {result.correct} / {result.total} correct
-            </h2>
-
-            <p>
-              This is a raw practice score,
-              not an official IELTS band.
-              Review the explanations beside each answer.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="button button-secondary"
-            onClick={restart}
-          >
-            <RotateCcw
-              size={17}
+          <span className="answered-pill">
+            <BookOpen
+              size={15}
               aria-hidden="true"
             />
-            New attempt
-          </button>
-        </section>
-      )}
+            {test.passages.length} passage
+            {test.passages.length !== 1 ? 's' : ''}
+          </span>
 
-      {test.passages.length > 1 && (
-        <PassageNavigator
-          test={test}
-          activeIndex={activeIndex}
-          answers={draft.answers}
-          onChange={setActiveIndex}
-        />
-      )}
+          <span className="answered-pill">
+            {totalQuestions} questions
+          </span>
 
-      <div className="reading-mini-grid">
+          <span className="answered-pill">
+            <Clock3
+              size={15}
+              aria-hidden="true"
+            />
+            {test.durationMinutes} minutes
+          </span>
+        </div>
 
-        {/* Reading passage */}
-        <section
-          className="paper-panel reading-passage"
-          aria-labelledby="reading-passage-title"
+        {session.status === 'new' && (
+          <>
+            <h2>Ready to begin?</h2>
+
+            <p>
+              Your timer starts when you select
+              Start test. You can leave and return
+              while your time is still running.
+            </p>
+          </>
+        )}
+
+        {session.status === 'active' && (
+          <>
+            <h2>You have an unfinished test</h2>
+
+            <p>
+              {session.answered} of {totalQuestions}
+              {' '}questions answered.
+              Resume with your original timer,
+              or start a new attempt.
+            </p>
+          </>
+        )}
+
+        {session.status === 'finished' && (
+          <>
+            <h2>Previous attempt completed</h2>
+
+            <p>
+              Your previous attempt has{' '}
+              {session.answered} answered questions.
+              You can review its answers and
+              explanations or start again.
+            </p>
+          </>
+        )}
+
+        {session.status === 'expired' && (
+          <>
+            <h2>Your previous timer expired</h2>
+
+            <p>
+              The old test period has ended.
+              You can begin a fresh attempt
+              {session.answered > 0
+                ? ' or review your saved answers.'
+                : '.'}
+            </p>
+          </>
+        )}
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginTop: 24,
+          }}
         >
-          <p className="eyebrow">
-            PASSAGE {activeIndex + 1}
-          </p>
-
-          <h2 id="reading-passage-title">
-            {activePassage.title}
-          </h2>
-
-          {activePassage.paragraphs.map(
-            (paragraph, index) => (
-              <p
-                key={`${activePassage.id}-${index}`}
-                className="passage-text"
-              >
-                {paragraph}
-              </p>
-            )
+          {session.status === 'new' && (
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={startNew}
+            >
+              Start test
+            </button>
           )}
 
-          <p className="source-label">
-            Original practice passage created for this website.
-          </p>
-        </section>
-
-        {/* Questions */}
-        <section
-          className="paper-panel reading-questions"
-          aria-labelledby="reading-questions-title"
-        >
-          <div className="reading-questions-head">
-            <div>
-              <p className="eyebrow">
-                ANSWER SHEET
-              </p>
-
-              <h2 id="reading-questions-title">
-                Questions{' '}
-                {activePassage.questions[0]?.number ?? '–'}
-                –
-                {activePassage.questions.at(-1)?.number ?? '–'}
-              </h2>
-            </div>
-
-            <span className="answered-pill">
-              {answered} / {result.total} answered
-            </span>
-          </div>
-
-          {/* Question navigator with review colors */}
-          <div
-            className="reading-navigator"
-            aria-label="Jump to question"
-          >
-            {activePassage.questions.map((question) => {
-              const isAnswered = Boolean(
-                draft.answers[question.id]?.trim()
-              )
-
-              const graded = resultsById.get(
-                question.id
-              )
-
-              return (
-                <button
-                  type="button"
-                  key={question.id}
-                  className={`reading-nav-number ${
-                    isAnswered ? 'is-answered' : ''
-                  }`}
-                  style={
-                    draft.submitted &&
-                    graded?.isCorrect
-                      ? correctAnswerStyle
-                      : undefined
-                  }
-                  aria-label={`Question ${question.number}, ${
-                    draft.submitted
-                      ? graded?.isCorrect
-                        ? 'correct'
-                        : isAnswered
-                          ? 'incorrect'
-                          : 'unanswered'
-                      : isAnswered
-                        ? 'answered'
-                        : 'unanswered'
-                  }`}
-                  onClick={() =>
-                    document
-                      .getElementById(
-                        `reading-question-${question.id}`
-                      )
-                      ?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center',
-                      })
-                  }
-                >
-                  {question.number}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Matching Headings instructions */}
-          {activePassage.questions.some(
-            (question) =>
-              question.type === 'matching-headings'
-          ) &&
-            !draft.submitted && (
-              <p
-                className="reading-save"
-                style={{ marginBottom: 20 }}
-              >
-                Each heading can be used once.
-                Choosing a heading already used elsewhere
-                moves it to this question.
-              </p>
-            )}
-
-          {/* Render questions */}
-          {activePassage.questions.map(
-            (question, index) => {
-              const graded = resultsById.get(
-                question.id
-              )
-
-              const selected =
-                draft.answers[question.id] ?? ''
-
-              const startsGroup =
-                index === 0 ||
-                activePassage.questions[index - 1].type !==
-                  question.type
-
-              const options =
-                question.type === 'tfng'
-                  ? ['TRUE', 'FALSE', 'NOT GIVEN'].map(
-                      (value) => ({
-                        value,
-                        label: value,
-                      })
-                    )
-                  : question.options ?? []
-
-              return (
-                <div key={question.id}>
-
-                  {startsGroup && (
-                    <div
-                      className={`reading-group-heading ${
-                        index > 0
-                          ? 'reading-inline-group'
-                          : ''
-                      }`}
-                    >
-                      <strong>
-                        Questions {question.number}–
-                        {lastQuestionInGroup(
-                          activePassage.questions,
-                          index
-                        )}
-                      </strong>
-
-                      <span>
-                        {kindLabels[question.type]}
-                      </span>
-                    </div>
-                  )}
-
-                  <fieldset
-                    className="reading-question"
-                    id={`reading-question-${question.id}`}
-                    disabled={draft.submitted}
-                  >
-                    <legend>
-                      <span className="question-number">
-                        {question.number}
-                      </span>
-
-                      {question.prompt}
-                    </legend>
-
-                    {question.type === 'short' ? (
-                      <div className="reading-short-wrap">
-                        <label
-                          htmlFor={`short-answer-${question.id}`}
-                        >
-                          Your answer
-                        </label>
-
-                        <input
-                          id={`short-answer-${question.id}`}
-                          autoComplete="off"
-                          className="reading-short-answer"
-                          type="text"
-                          value={selected}
-                          style={
-                            draft.submitted &&
-                            selected.trim() &&
-                            graded?.isCorrect
-                              ? correctAnswerStyle
-                              : undefined
-                          }
-                          onChange={(event) =>
-                            choose(
-                              question.id,
-                              event.target.value
-                            )
-                          }
-                          placeholder="Type your answer"
-                        />
-                      </div>
-                    ) : (
-                      <div className="reading-answer-options">
-                        {options.map((option) => {
-                          const isSelected =
-                            selected === option.value
-
-                          const correctSelection =
-                            draft.submitted &&
-                            isSelected &&
-                            graded?.isCorrect
-
-                          const usedIn =
-                            question.type === 'matching-headings'
-                              ? activePassage.questions.find(
-                                  (other) =>
-                                    other.id !== question.id &&
-                                    sameHeadingSet(
-                                      question,
-                                      other
-                                    ) &&
-                                    draft.answers[other.id] ===
-                                      option.value
-                                )
-                              : undefined
-
-                          return (
-                            <label
-                              key={option.value}
-                              className={`reading-answer-option ${
-                                isSelected ? 'selected' : ''
-                              }`}
-                              style={
-                                correctSelection
-                                  ? correctAnswerStyle
-                                  : undefined
-                              }
-                            >
-                              <input
-                                type="radio"
-                                name={`reading-question-${question.id}`}
-                                value={option.value}
-                                checked={isSelected}
-                                style={
-                                  correctSelection
-                                    ? {
-                                        accentColor:
-                                          'var(--success, #16803c)',
-                                      }
-                                    : undefined
-                                }
-                                onChange={() =>
-                                  choose(
-                                    question.id,
-                                    option.value
-                                  )
-                                }
-                              />
-
-                              <span>
-                                {option.label}
-                              </span>
-
-                              {draft.submitted &&
-                                isSelected && (
-                                  <span
-                                    style={{
-                                      marginLeft: 'auto',
-                                      fontSize: 12,
-                                      fontWeight: 700,
-                                      color: graded?.isCorrect
-                                        ? 'var(--success, #16803c)'
-                                        : 'var(--accent-ink)',
-                                    }}
-                                  >
-                                    {graded?.isCorrect
-                                      ? 'Correct'
-                                      : 'Incorrect'}
-                                  </span>
-                                )}
-
-                              {!draft.submitted &&
-                                usedIn && (
-                                  <span
-                                    style={{
-                                      marginLeft: 'auto',
-                                      color: 'var(--muted)',
-                                      fontSize: 12,
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                  >
-                                    Used in Q{usedIn.number}
-                                  </span>
-                                )}
-                            </label>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {draft.submitted && graded && (
-                      <div
-                        className={`reading-explanation ${
-                          graded.isCorrect
-                            ? 'is-correct'
-                            : ''
-                        }`}
-                      >
-                        <strong>
-                          {graded.isCorrect
-                            ? 'Correct'
-                            : 'Needs review'}
-                          {' · '}Answer:{' '}
-                          {graded.correctAnswers.join(' / ')}
-                        </strong>
-
-                        <p>
-                          {graded.explanation}
-                        </p>
-                      </div>
-                    )}
-                  </fieldset>
-                </div>
-              )
-            }
-          )}
-
-          <div className="reading-actions">
-            {draft.submitted ? (
+          {session.status === 'active' && (
+            <>
               <button
-                className="button button-secondary"
                 type="button"
-                onClick={restart}
+                className="button button-primary"
+                onClick={resumeOrReview}
+              >
+                Resume test
+              </button>
+
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={startNew}
               >
                 <RotateCcw
                   size={17}
                   aria-hidden="true"
                 />
-                Try again
+                Start over
               </button>
-            ) : (
+            </>
+          )}
+
+          {session.status === 'finished' && (
+            <>
               <button
-                className="button button-primary"
                 type="button"
-                onClick={finish}
+                className="button button-primary"
+                onClick={resumeOrReview}
               >
-                Submit practice
-                <ArrowRight
-                  size={18}
+                Review previous attempt
+              </button>
+
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={startNew}
+              >
+                <RotateCcw
+                  size={17}
                   aria-hidden="true"
                 />
+                Start new attempt
               </button>
-            )}
+            </>
+          )}
 
-            <span className="reading-save">
-              <ShieldCheck
-                size={16}
-                aria-hidden="true"
-              />
+          {session.status === 'expired' && (
+            <>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={startNew}
+              >
+                Start new attempt
+              </button>
 
-              {saveOk
-                ? 'Answers stored in this browser'
-                : 'Browser storage unavailable — keep this tab open'}
-            </span>
-          </div>
-        </section>
-      </div>
+              {session.answered > 0 && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={reviewExpired}
+                >
+                  Review saved answers
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            style={{
+              marginTop: 16,
+              color: '#b42330',
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        <p
+          className="source-label"
+          style={{ marginTop: 24 }}
+        >
+          Original practice material. Results are
+          not official IELTS band scores.
+        </p>
+      </section>
     </div>
   )
 }
