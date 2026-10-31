@@ -22,6 +22,9 @@ import {
 } from 'lucide-react'
 
 import PracticeLibrary from './PracticeLibrary'
+import ReadingHistoryReview from './ReadingHistoryReview'
+import { HISTORY_CHANGED, readReadingAttempts } from './reading/attemptHistory'
+import type { HistoryRead } from './reading/attemptHistory'
 import ReadingPractice from './ReadingPractice'
 import type { ReadingAttempt } from './ReadingPractice'
 import { twoPassageTest } from './reading/twoPassageTest'
@@ -40,9 +43,12 @@ type Page =
   | 'reading-mini'
   | 'reading-two-passage'
   | 'reading-headings'
+  | `reading-review/${string}`
   | `skill-${SkillId}`
 
 type DemoAttempt = {
+  archiveId?: string
+  testTitle?: string
   completedAt: string
   correct: number
   total: number
@@ -156,7 +162,13 @@ function readHistory(): DemoAttempt[] {
     const parsed: unknown = JSON.parse(value)
 
     return Array.isArray(parsed)
-      ? (parsed as DemoAttempt[])
+      ? parsed.filter((item): item is DemoAttempt =>
+          typeof item === 'object' && item !== null &&
+          typeof item.completedAt === 'string' && Number.isFinite(Date.parse(item.completedAt)) &&
+          Number.isInteger(item.correct) && Number.isInteger(item.total) &&
+          item.total > 0 && item.correct >= 0 && item.correct <= item.total &&
+          (item.testTitle === undefined || typeof item.testTitle === 'string') &&
+          (item.archiveId === undefined || typeof item.archiveId === 'string'))
       : []
   } catch {
     return []
@@ -165,6 +177,7 @@ function readHistory(): DemoAttempt[] {
 
 function routeFromHash(): Page {
   const hash = window.location.hash.replace(/^#\/?/, '')
+  if (hash.startsWith('reading-review/')) return hash as Page
 
   if (
     hash === 'practice-ai' ||
@@ -225,6 +238,7 @@ function Nav({
   mobile?: boolean
 }) {
   const selected =
+    page.startsWith('reading-review/') ? 'progress' :
     page === 'reading-demo' ||
     page === 'reading-mini' ||
     page === 'reading-two-passage' ||
@@ -606,9 +620,14 @@ function SkillDetail({
 
 function Progress({
   history,
+  archive,
+  onRetry,
 }: {
   history: DemoAttempt[]
+  archive: HistoryRead | null
+  onRetry: () => void
 }) {
+  const [visibleCount, setVisibleCount] = useState(8)
   const bestPercent = history.reduce(
     (n, a) =>
       Math.max(
@@ -626,7 +645,16 @@ function Progress({
         description="A quiet record of practice, built around learning rather than competing with other students."
       />
 
-      {history.length === 0 ? (
+      {archive === null && <p role="status">Loading saved attempt history...</p>}
+      {archive?.kind === 'unavailable' && <div role="alert">
+        <p>Saved attempt history could not be loaded. Existing records have not been changed.</p>
+        <button className="button button-secondary" type="button" onClick={onRetry}>Retry history</button>
+      </div>}
+      {archive?.kind === 'ok' && archive.invalidCount > 0 && (
+        <p role="alert">{archive.invalidCount} saved history record(s) could not be verified. They have been preserved.</p>
+      )}
+
+      {history.length === 0 ? (archive?.kind === 'ok' ? (
         <div className="empty-state">
           <span className="empty-symbol">
             <TrendingUp
@@ -657,7 +685,7 @@ function Progress({
             />
           </a>
         </div>
-      ) : (
+      ) : null) : (
         <>
           <div className="metrics-grid">
             <div className="metric">
@@ -686,21 +714,21 @@ function Progress({
             {history
               .slice()
               .reverse()
-              .slice(0, 8)
+              .slice(0, visibleCount)
               .map((item, index) => (
                 <div
                   className="history-row"
-                  key={`${item.completedAt}-${index}`}
+                  key={item.archiveId ?? `${item.completedAt}-${index}`}
                 >
                   <div>
                     <strong>
-                      {item.kind === 'reading-headings'
+                      {item.testTitle ?? (item.kind === 'reading-headings'
                         ? 'Matching Headings practice'
                         : item.kind === 'reading-two-passage'
                           ? 'Two-passage Reading practice'
                           : item.kind === 'reading-mini'
                             ? 'Reading mini-test'
-                            : 'Reading demo'}
+                            : 'Reading demo')}
                     </strong>
 
                     <small>
@@ -708,6 +736,12 @@ function Progress({
                         item.completedAt
                       ).toLocaleString()}
                     </small>
+                    {item.archiveId ? (
+                      <a className="text-link" href={`#/reading-review/${encodeURIComponent(item.archiveId)}`}
+                        aria-label={`Review ${item.testTitle ?? 'Reading'} attempt from ${new Date(item.completedAt).toLocaleString()}`}>
+                        Review answers
+                      </a>
+                    ) : <small>Score summary only · detailed answers were not archived.</small>}
                   </div>
 
                   <strong>
@@ -715,6 +749,10 @@ function Progress({
                   </strong>
                 </div>
               ))}
+            {history.length > visibleCount && (
+              <button className="button button-secondary" type="button"
+                onClick={() => setVisibleCount(count => count + 8)}>Show more attempts</button>
+            )}
           </section>
         </>
       )}
@@ -724,7 +762,7 @@ function Progress({
           size={17}
           aria-hidden="true"
         />
-        Demo progress is stored only in this browser.
+        Practice history is stored only in this browser.
         Clearing browser data will remove it.
       </p>
     </div>
@@ -1024,6 +1062,36 @@ function App() {
 
   const [history, setHistory] =
     useState<DemoAttempt[]>(readHistory)
+  const [archive, setArchive] = useState<HistoryRead | null>(null)
+
+  useEffect(() => {
+    let active = true
+    let generation = 0
+    const refresh = async () => {
+      const current = ++generation
+      const saved = await readReadingAttempts()
+      if (active && current === generation) setArchive(saved)
+    }
+    void refresh()
+    window.addEventListener(HISTORY_CHANGED, refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      window.removeEventListener(HISTORY_CHANGED, refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [page])
+
+  const displayHistory: DemoAttempt[] = [...history, ...(archive?.kind === 'ok'
+    ? archive.attempts.map(attempt => ({
+        archiveId: attempt.id,
+        testTitle: attempt.testSnapshot.title,
+        completedAt: attempt.completedAt,
+        correct: attempt.resultSnapshot.correct,
+        total: attempt.resultSnapshot.total,
+      })) : [])].sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))
+
+  const retryHistory = () => window.dispatchEvent(new Event(HISTORY_CHANGED))
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -1061,6 +1129,9 @@ function App() {
   function storeAttempt(
     attempt: DemoAttempt | ReadingAttempt
   ) {
+    // Full Reading attempts are already committed to IndexedDB. Keep the old
+    // score-only key for the legacy demo; never duplicate archived results there.
+    if (attempt.archiveId) return
     setHistory((previous) => {
       const next = [...previous, attempt]
 
@@ -1139,7 +1210,7 @@ function App() {
         tabIndex={-1}
       >
         {page === 'overview' && (
-          <Overview history={history} />
+          <Overview history={displayHistory} />
         )}
 
         {page === 'practice' && (
@@ -1147,7 +1218,12 @@ function App() {
         )}
 
         {page === 'progress' && (
-          <Progress history={history} />
+          <Progress history={displayHistory} archive={archive} onRetry={retryHistory} />
+        )}
+
+        {page.startsWith('reading-review/') && (
+          <ReadingHistoryReview encodedId={page.slice('reading-review/'.length)}
+            history={archive} onRetry={retryHistory} />
         )}
 
         {page === 'reading-demo' && (

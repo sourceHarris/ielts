@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +10,8 @@ import {
 
 import { cityShadeTest } from './reading/miniTest'
 import { gradeReadingTest } from './reading/grading'
+import { createReadingAttempt, saveReadingAttempt } from './reading/attemptHistory'
+import type { ReadingAttemptSnapshot } from './reading/attemptHistory'
 import PassageNavigator from './reading/PassageNavigator'
 import {
   clearDraft, freshDraft, readDraft, remainingSeconds as getRemainingSeconds,
@@ -24,6 +26,7 @@ import type {
 import './ReadingPractice.css'
 
 export type ReadingAttempt = {
+  archiveId?: string
   completedAt: string
   correct: number
   total: number
@@ -65,33 +68,44 @@ const correctAnswerStyle = {
 
 export default function ReadingPractice({
   onComplete,
-  test = cityShadeTest,
+  test: suppliedTest = cityShadeTest,
   allowNewDraft = false,
+  reviewAttempt,
 }: {
   onComplete: (attempt: ReadingAttempt) => void
   test?: ReadingTest
   allowNewDraft?: boolean
+  reviewAttempt?: ReadingAttemptSnapshot
 }) {
-  const [initial] = useState(() => readDraft(test))
+  const test = reviewAttempt?.testSnapshot ?? suppliedTest
+  const [initial] = useState(() => reviewAttempt ? null : readDraft(test))
   // A draft disappearing between Resume and mounting must not start a new test.
-  const canRun = initial.kind === 'valid' ||
-    (initial.kind === 'missing' && allowNewDraft)
+  const canRun = Boolean(reviewAttempt) || initial?.kind === 'valid' ||
+    (initial?.kind === 'missing' && allowNewDraft)
   const [draft, setDraft] = useState<ReadingDraft>(
-    () => initial.kind === 'valid' ? initial.draft : freshDraft()
+    () => reviewAttempt ? {
+      startedAt: reviewAttempt.startedAt, answers: reviewAttempt.answers, submitted: true,
+    } : initial?.kind === 'valid' ? initial.draft : freshDraft()
   )
 
   const [now, setNow] = useState(Date.now)
   const [activeIndex, setActiveIndex] = useState(0)
   const [saveResult, setSaveResult] = useState<StorageResult>(
-    initial.kind === 'valid' ? { kind: 'ok' } : { kind: 'unavailable' }
+    initial?.kind === 'valid' ? { kind: 'ok' } : { kind: 'unavailable' }
   )
   const [storageError, setStorageError] = useState('')
+  const [historyState, setHistoryState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'conflict'>('idle')
+  const pendingAttempt = useRef<ReadingAttemptSnapshot | null>(null)
+  const historyBusy = useRef(false)
+  const historyNotified = useRef(false)
+  const completionTime = useRef<number | null>(null)
+  const completionReason = useRef<ReadingAttemptSnapshot['completionReason']>('submitted')
 
   const completed = useRef(draft.submitted)
 
   const activePassage = test.passages[activeIndex]
 
-  const result = gradeReadingTest(
+  const result = reviewAttempt?.resultSnapshot ?? gradeReadingTest(
     test,
     draft.answers
   )
@@ -116,8 +130,36 @@ export default function ReadingPractice({
 
   // Revalidate before every save. Invalid drafts are never replaced by autosave.
   useEffect(() => {
-    if (canRun) setSaveResult(saveDraft(test, draft))
-  }, [draft, test, canRun])
+    if (canRun && !reviewAttempt) setSaveResult(saveDraft(test, draft))
+  }, [draft, test, canRun, reviewAttempt])
+
+  const recordCompletion = useCallback(async (reason: ReadingAttemptSnapshot['completionReason']) => {
+    if (historyBusy.current || historyNotified.current || reviewAttempt) return
+    historyBusy.current = true
+    completionReason.current = reason
+    setHistoryState('saving')
+    try {
+      pendingAttempt.current ??= await createReadingAttempt(test, draft, reason, completionTime.current ?? Date.now())
+      const saved = await saveReadingAttempt(pendingAttempt.current)
+      if (saved.kind !== 'ok') {
+        setHistoryState(saved.kind === 'conflict' ? 'conflict' : 'failed')
+        return
+      }
+      setHistoryState('saved')
+      historyNotified.current = true
+      onComplete({
+        archiveId: saved.attempt.id,
+        completedAt: saved.attempt.completedAt,
+        correct: saved.attempt.resultSnapshot.correct,
+        total: saved.attempt.resultSnapshot.total,
+        kind: test.id === cityShadeTest.id ? 'reading-mini' : 'reading-two-passage',
+      })
+    } catch {
+      setHistoryState('failed')
+    } finally {
+      historyBusy.current = false
+    }
+  }, [test, draft, reviewAttempt, onComplete])
 
   // Update countdown.
   useEffect(() => {
@@ -149,15 +191,8 @@ export default function ReadingPractice({
       submitted: true,
     }))
 
-    onComplete({
-      completedAt: new Date().toISOString(),
-      correct: result.correct,
-      total: result.total,
-      kind:
-        test.id === cityShadeTest.id
-          ? 'reading-mini'
-          : 'reading-two-passage',
-    })
+    completionTime.current = Date.now()
+    void recordCompletion('timer-expired')
   }, [
     canRun,
     draft.submitted,
@@ -166,6 +201,7 @@ export default function ReadingPractice({
     result.total,
     onComplete,
     test.id,
+    recordCompletion,
   ])
 
   // Save a student's answer.
@@ -265,15 +301,8 @@ export default function ReadingPractice({
       submitted: true,
     }))
 
-    onComplete({
-      completedAt: new Date().toISOString(),
-      correct: result.correct,
-      total: result.total,
-      kind:
-        test.id === cityShadeTest.id
-          ? 'reading-mini'
-          : 'reading-two-passage',
-    })
+    completionTime.current = Date.now()
+    void recordCompletion('submitted')
 
     window.scrollTo({
       top: 0,
@@ -282,16 +311,24 @@ export default function ReadingPractice({
   }
 
   function restart() {
+    if (reviewAttempt) return
+    if (historyBusy.current) {
+      setStorageError('Please wait while this attempt is saved to history.')
+      return
+    }
     const current = readDraft(test)
     if (current.kind === 'unavailable') {
       setSaveResult(current)
       setStorageError('Could not check browser storage. Your current answers have not been cleared.')
       return
     }
+    const historyWarning = historyState === 'failed' || historyState === 'conflict'
+      ? 'This result has not been saved to history. Starting again loses the unsaved history record. '
+      : ''
     const message = current.kind === 'invalid'
       ? 'The stored draft is invalid or outside the 30-day retention period. Discard it and your current answers to start again?'
       : 'Start a new test? This clears your answers for this attempt.'
-    if (!window.confirm(message)) return
+    if (!window.confirm(historyWarning + message)) return
     const cleared = clearDraft(test, current.kind === 'invalid')
     if (cleared.kind !== 'ok') {
       setSaveResult(cleared)
@@ -299,6 +336,10 @@ export default function ReadingPractice({
       return
     }
     completed.current = false
+    pendingAttempt.current = null
+    historyNotified.current = false
+    completionTime.current = null
+    setHistoryState('idle')
     const fresh = freshDraft()
     setDraft(fresh)
     setNow(fresh.startedAt)
@@ -325,13 +366,13 @@ export default function ReadingPractice({
 
       <a
         className="back-link"
-        href="#/practice"
+        href={reviewAttempt ? '#/progress' : '#/practice'}
       >
         <ArrowLeft
           size={17}
           aria-hidden="true"
         />
-        All practice
+        {reviewAttempt ? 'Back to progress' : 'All practice'}
       </a>
 
       <header className="reading-mini-header">
@@ -401,17 +442,38 @@ export default function ReadingPractice({
             </p>
           </div>
 
-          <button
+          {!reviewAttempt && <button
             type="button"
             className="button button-secondary"
             onClick={restart}
+            disabled={historyState === 'saving'}
           >
             <RotateCcw
               size={17}
               aria-hidden="true"
             />
             New attempt
-          </button>
+          </button>}
+        </section>
+      )}
+
+      {draft.submitted && (reviewAttempt || historyState !== 'idle') && (
+        <section className="paper-panel" aria-label="Attempt history status">
+          {reviewAttempt ? (
+            <p><strong>{test.title}</strong> · Saved {new Date(reviewAttempt.completedAt).toLocaleString()}. This historical attempt is read only.</p>
+          ) : historyState === 'saved' ? (
+            <p role="status">Attempt saved to history. You can reopen it from Progress after starting another test.</p>
+          ) : historyState === 'saving' ? (
+            <p role="status">Saving attempt to history...</p>
+          ) : (
+            <>
+              <p role="alert">{historyState === 'conflict'
+                ? 'A different result for this session is already archived. It has not been overwritten.'
+                : 'This result has not been saved to history. Keep this page open and try again.'}</p>
+              {historyState === 'failed' && <button type="button" className="button button-secondary"
+                onClick={() => void recordCompletion(completionReason.current)}>Retry saving history</button>}
+            </>
+          )}
         </section>
       )}
 
@@ -772,11 +834,14 @@ export default function ReadingPractice({
           )}
 
           <div className="reading-actions">
-            {draft.submitted ? (
+            {reviewAttempt ? (
+              <a className="button button-secondary" href="#/progress">Back to progress</a>
+            ) : draft.submitted ? (
               <button
                 className="button button-secondary"
                 type="button"
                 onClick={restart}
+                disabled={historyState === 'saving'}
               >
                 <RotateCcw
                   size={17}
@@ -804,7 +869,7 @@ export default function ReadingPractice({
                 aria-hidden="true"
               />
 
-              {saveResult.kind === 'ok'
+              {reviewAttempt ? 'Saved historical answers — read only' : saveResult.kind === 'ok'
                 ? 'Answers stored in this browser'
                 : saveResult.kind === 'invalid' || saveResult.kind === 'conflict'
                   ? 'Saved draft changed or is invalid. Current answers are not saved — keep this tab open'

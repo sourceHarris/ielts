@@ -5,7 +5,7 @@ import {
   MINI_TEST_MINUTES,
   miniPassage,
   miniQuestions,
-} from '../readingPracticeData'
+} from '../readingPracticeData.ts'
 
 export const cityShadeTest: ReadingTest = {
   id: 'city-shade-mini-v1',
