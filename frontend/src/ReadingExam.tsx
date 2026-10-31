@@ -11,6 +11,11 @@ import {
 import { cityShadeTest } from './reading/miniTest'
 import { gradeReadingTest } from './reading/grading'
 import PassageNavigator from './reading/PassageNavigator'
+import {
+  clearDraft, freshDraft, readDraft, remainingSeconds as getRemainingSeconds,
+  sameHeadingSet, saveDraft,
+} from './reading/sessionStorage'
+import type { ReadingDraft, StorageResult } from './reading/sessionStorage'
 import type {
   ReadingQuestion,
   ReadingTest,
@@ -23,153 +28,6 @@ export type ReadingAttempt = {
   correct: number
   total: number
   kind: 'reading-mini' | 'reading-two-passage'
-}
-
-type Draft = {
-  startedAt: number
-  answers: Record<string, string>
-  submitted: boolean
-}
-
-const OLD_MINI_DRAFT_KEY =
-  'practice-room-reading-mini-draft-v1'
-
-function draftKey(test: ReadingTest): string {
-  return test.id === cityShadeTest.id
-    ? OLD_MINI_DRAFT_KEY
-    : `practice-room-reading-${test.id}-draft-v1`
-}
-
-function freshDraft(): Draft {
-  return {
-    startedAt: Date.now(),
-    answers: {},
-    submitted: false,
-  }
-}
-
-// Only headings from the same matching set must be unique.
-// Other matching sets may reuse Roman numerals.
-function sameHeadingSet(
-  a: ReadingQuestion,
-  b: ReadingQuestion
-): boolean {
-  if (
-    a.type !== 'matching-headings' ||
-    b.type !== 'matching-headings'
-  ) {
-    return false
-  }
-
-  if (
-    !a.options?.length ||
-    !b.options ||
-    a.options.length !== b.options.length
-  ) {
-    return false
-  }
-
-  return a.options.every(
-    (option, index) =>
-      option.value === b.options![index].value &&
-      option.label === b.options![index].label
-  )
-}
-
-// Clean up duplicate headings from older unfinished drafts.
-function removeDuplicateHeadingChoices(
-  test: ReadingTest,
-  answers: Record<string, string>
-): Record<string, string> {
-  const cleaned = { ...answers }
-
-  for (const passage of test.passages) {
-    const headings = passage.questions.filter(
-      (question) => question.type === 'matching-headings'
-    )
-
-    for (let i = 0; i < headings.length; i++) {
-      const current = headings[i]
-
-      if (!cleaned[current.id]) continue
-
-      for (let j = 0; j < i; j++) {
-        const previous = headings[j]
-
-        if (
-          sameHeadingSet(current, previous) &&
-          cleaned[previous.id] === cleaned[current.id]
-        ) {
-          delete cleaned[previous.id]
-        }
-      }
-    }
-  }
-
-  return cleaned
-}
-
-function loadDraft(test: ReadingTest): Draft {
-  try {
-    const saved = window.localStorage.getItem(
-      draftKey(test)
-    )
-
-    if (!saved) return freshDraft()
-
-    const parsed: unknown = JSON.parse(saved)
-
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null
-    ) {
-      return freshDraft()
-    }
-
-    const candidate = parsed as Partial<Draft>
-    const startedAt = candidate.startedAt
-
-    if (
-      typeof startedAt !== 'number' ||
-      !Number.isFinite(startedAt) ||
-      startedAt > Date.now() ||
-      startedAt <=
-        Date.now() - 30 * 24 * 60 * 60 * 1000 ||
-      typeof candidate.answers !== 'object' ||
-      candidate.answers === null ||
-      typeof candidate.submitted !== 'boolean'
-    ) {
-      return freshDraft()
-    }
-
-    // Support older drafts that used numeric question IDs.
-    const storedAnswers =
-      candidate.answers as Record<string, unknown>
-
-    const answers: Record<string, string> = {}
-
-    for (const question of test.passages.flatMap(
-      (passage) => passage.questions
-    )) {
-      const savedAnswer =
-        storedAnswers[question.id] ??
-        storedAnswers[String(question.number)]
-
-      if (typeof savedAnswer === 'string') {
-        answers[question.id] = savedAnswer
-      }
-    }
-
-    return {
-      startedAt,
-      answers: candidate.submitted
-        ? answers
-        : removeDuplicateHeadingChoices(test, answers),
-      submitted: candidate.submitted,
-    }
-  } catch {
-    return freshDraft()
-  }
 }
 
 const kindLabels: Record<
@@ -208,17 +66,26 @@ const correctAnswerStyle = {
 export default function ReadingPractice({
   onComplete,
   test = cityShadeTest,
+  allowNewDraft = false,
 }: {
   onComplete: (attempt: ReadingAttempt) => void
   test?: ReadingTest
+  allowNewDraft?: boolean
 }) {
-  const [draft, setDraft] = useState<Draft>(
-    () => loadDraft(test)
+  const [initial] = useState(() => readDraft(test))
+  // A draft disappearing between Resume and mounting must not start a new test.
+  const canRun = initial.kind === 'valid' ||
+    (initial.kind === 'missing' && allowNewDraft)
+  const [draft, setDraft] = useState<ReadingDraft>(
+    () => initial.kind === 'valid' ? initial.draft : freshDraft()
   )
 
   const [now, setNow] = useState(Date.now)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [saveOk, setSaveOk] = useState(true)
+  const [saveResult, setSaveResult] = useState<StorageResult>(
+    initial.kind === 'valid' ? { kind: 'ok' } : { kind: 'unavailable' }
+  )
+  const [storageError, setStorageError] = useState('')
 
   const completed = useRef(draft.submitted)
 
@@ -239,16 +106,7 @@ export default function ReadingPractice({
   const answered =
     result.total - result.unanswered
 
-  const remainingSeconds = Math.max(
-    0,
-    Math.ceil(
-      (
-        draft.startedAt +
-        test.durationMinutes * 60_000 -
-        now
-      ) / 1000
-    )
-  )
+  const remainingSeconds = getRemainingSeconds(test, draft, now)
 
   const minutes = Math.floor(
     remainingSeconds / 60
@@ -256,23 +114,14 @@ export default function ReadingPractice({
 
   const seconds = remainingSeconds % 60
 
-  // Save answers in the browser.
+  // Revalidate before every save. Invalid drafts are never replaced by autosave.
   useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        draftKey(test),
-        JSON.stringify(draft)
-      )
-
-      setSaveOk(true)
-    } catch {
-      setSaveOk(false)
-    }
-  }, [draft, test])
+    if (canRun) setSaveResult(saveDraft(test, draft))
+  }, [draft, test, canRun])
 
   // Update countdown.
   useEffect(() => {
-    if (draft.submitted) return
+    if (!canRun || draft.submitted) return
 
     const interval = window.setInterval(
       () => setNow(Date.now()),
@@ -280,11 +129,12 @@ export default function ReadingPractice({
     )
 
     return () => window.clearInterval(interval)
-  }, [draft.submitted])
+  }, [draft.submitted, canRun])
 
   // Submit automatically when time expires.
   useEffect(() => {
     if (
+      !canRun ||
       draft.submitted ||
       remainingSeconds > 0 ||
       completed.current
@@ -309,6 +159,7 @@ export default function ReadingPractice({
           : 'reading-two-passage',
     })
   }, [
+    canRun,
     draft.submitted,
     remainingSeconds,
     result.correct,
@@ -370,6 +221,24 @@ export default function ReadingPractice({
     })
   }
 
+  function revalidateAction(): boolean {
+    const current = readDraft(test)
+    if (current.kind === 'invalid' || current.kind === 'unavailable') {
+      setSaveResult(current)
+      setStorageError('The saved draft could not be verified. It has not been replaced. Keep this tab open and restore storage access, or return to test options for recovery.')
+      return false
+    }
+    if (current.kind === 'valid' &&
+        (current.draft.startedAt !== draft.startedAt ||
+         current.draft.submitted !== draft.submitted)) {
+      setSaveResult({ kind: 'conflict' })
+      setStorageError('The saved session has changed in another tab. Reload to check it before continuing.')
+      return false
+    }
+    setStorageError('')
+    return true
+  }
+
   function finish() {
     if (
       draft.submitted ||
@@ -377,6 +246,8 @@ export default function ReadingPractice({
     ) {
       return
     }
+
+    if (!revalidateAction()) return
 
     if (
       result.unanswered > 0 &&
@@ -411,24 +282,42 @@ export default function ReadingPractice({
   }
 
   function restart() {
-    if (
-      !window.confirm(
-        'Start a new test? This clears your answers for this attempt.'
-      )
-    ) {
+    const current = readDraft(test)
+    if (current.kind === 'unavailable') {
+      setSaveResult(current)
+      setStorageError('Could not check browser storage. Your current answers have not been cleared.')
       return
     }
-
+    const message = current.kind === 'invalid'
+      ? 'The stored draft is invalid or outside the 30-day retention period. Discard it and your current answers to start again?'
+      : 'Start a new test? This clears your answers for this attempt.'
+    if (!window.confirm(message)) return
+    const cleared = clearDraft(test, current.kind === 'invalid')
+    if (cleared.kind !== 'ok') {
+      setSaveResult(cleared)
+      setStorageError('Could not clear the saved draft. Your current answers have not been reset.')
+      return
+    }
     completed.current = false
-
-    setDraft(freshDraft())
-    setNow(Date.now())
+    const fresh = freshDraft()
+    setDraft(fresh)
+    setNow(fresh.startedAt)
     setActiveIndex(0)
+    setSaveResult({ kind: 'unavailable' })
+    setStorageError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    })
+  if (!canRun) {
+    return (
+      <div className="page-section exam-page reading-mini">
+        <section className="paper-panel session-panel">
+          <h1>Saved test needs attention</h1>
+          <p role="alert">The saved draft could not be loaded. Nothing has been cleared or replaced.</p>
+          <a className="button button-secondary" href="#/practice">All practice</a>
+        </section>
+      </div>
+    )
   }
 
   return (
@@ -534,6 +423,8 @@ export default function ReadingPractice({
           onChange={setActiveIndex}
         />
       )}
+
+      {storageError && <p role="alert" className="session-error">{storageError}</p>}
 
       <div className="reading-mini-grid">
 
@@ -913,9 +804,11 @@ export default function ReadingPractice({
                 aria-hidden="true"
               />
 
-              {saveOk
+              {saveResult.kind === 'ok'
                 ? 'Answers stored in this browser'
-                : 'Browser storage unavailable — keep this tab open'}
+                : saveResult.kind === 'invalid' || saveResult.kind === 'conflict'
+                  ? 'Saved draft changed or is invalid. Current answers are not saved — keep this tab open'
+                  : 'Answers are not saved. Browser storage is unavailable — keep this tab open'}
             </span>
           </div>
         </section>
