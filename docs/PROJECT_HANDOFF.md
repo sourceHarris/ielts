@@ -6,7 +6,7 @@
 
 Build an independent IELTS Academic practice platform supporting Reading, Listening, Writing Task 1/Task 2, Speaking Parts 1-3, explanations, mistakes analysis, progress, and vocabulary active recall. Do not claim affiliation with IELTS owners or official examiner grading.
 
-**Private Cambridge practice:** Authentic Academic tests must work inside the locally run private application using legitimately supplied PDF/audio. External publisher links are supplementary. The separate planned importer follows local extraction draft -> structural/marking validation -> human review -> approved versioned package -> existing engine. Preserve publisher/book/edition/test/section identity, original instructions, accepted answers, and asset references. No unauthorized scraping, paywall bypassing, or pirated collections. Keep private originals, extracted packages, answer keys, recordings, and caches out of Git and public build artifacts. Public distribution requires a separate licensing/permissions milestone. The importer and private-content build guards are not implemented yet.
+**Private Cambridge practice:** Authentic Academic tests must work inside the locally run private application using legitimately supplied PDF/audio. External publisher links are supplementary. The separate planned importer follows local extraction draft -> structural/marking validation -> human review -> approved versioned package -> existing engine. Preserve publisher/book/edition/test/section identity, original instructions, accepted answers, and asset references. No unauthorized scraping, paywall bypassing, or pirated collections. Keep private originals, extracted packages, answer keys, recordings, and caches out of Git and public build artifacts. Public distribution requires a separate licensing/permissions milestone. A local PDF/OCR importer, review gate, private asset provider, and build guards are implemented; see docs/LOCAL_PRACTICE.md. Fully structured imports for every question type and a complete Cambridge collection remain unfinished.
 
 **Design:** The intentional redesign follows the installed Apple Design Skill at ~/.codex/skills/apple-design/SKILL.md. Verify availability in future environments and read applicable references before substantial UI review. Adapt principles to React web controls. Preserve light default, charcoal/black dark theme, red accent, unified library, accessible navigation, readable passages, responsive layouts, and minimal clutter. No unnecessary glass on content cards. Working components should receive focused changes.
 
@@ -19,8 +19,8 @@ Build an independent IELTS Academic practice platform supporting Reading, Listen
 | Sessions | Start/Resume/Review/restart, original timer, autosave, per-test draft keys, safe invalid-storage recovery | Atomic protection against simultaneous edits of the same draft |
 | Completed attempts | Immutable IndexedDB snapshots; Progress review links; content/key fingerprints; failed-write retry; corrupt-record preservation | Backup/restore, durable retry journal, database pagination |
 | Progress | Score summaries plus new archived attempts; show older rows | Comparable-test trends, error/criterion analysis |
-| Other modules | Listening/Writing/Speaking placeholder screens and supplementary publisher resources | Audio practice, editors, recordings, transcription, assessment |
-| Importing/AI/vocabulary | Confirmed requirements and private learner notes | No implemented importer, application AI service, or vocabulary UI |
+| Other modules | Original local audio playback, Writing Task 1/2 editors, Speaking recording/playback, timers, autosave, immutable private session history | Transcription, rubric/visual-grounded AI feedback and validated pronunciation |
+| Importing/AI/vocabulary | Local PDF/text/OCR import, source section suggestions, explicit key review, private PDF-based practice | Complete structured question imports, remaining content review, AI services, vocabulary UI |
 
 Active files:
 
@@ -33,8 +33,10 @@ Active files:
 - frontend/src/reading/sessionStorage.ts: draft keys, validation, retention, legacy restoration, saving/clearing.
 - frontend/src/reading/attemptHistory.ts: immutable snapshots, integrity/revision checks, transactional archive.
 - frontend/src/reading/miniTest.ts, twoPassageTest.ts, matchingHeadingsTest.ts, PassageNavigator.tsx: fixtures/navigation.
-- frontend/scripts/grading.test.mts, sessionStorage.test.mts, attemptHistory.test.mts: 60 Node tests.
+- frontend/scripts/grading.test.mts, sessionStorage.test.mts, attemptHistory.test.mts, privatePractice.test.mts: 84 Node tests.
 - frontend/scripts/readingHistory.browser.cjs: 34 real-IndexedDB/production-UI checks.
+
+New active modules: frontend/src/practice/ (private library, import review, PDF viewer, four workspaces, storage and marking), frontend/server/privateLibrary.ts (local-only asset provider), frontend/scripts/import-private.mjs, index-private.mjs and sourceSections.mts. See docs/LOCAL_PRACTICE.md for operational details.
 
 Root duplicate source folders and backups are not the active Vite application. Empty backend/ or ai/ folders do not establish working services.
 
@@ -52,6 +54,7 @@ Branch: feature/reading-engine. Remote: https://github.com/sourceHarris/ielts.gi
 | Apple-guided redesign | 416f77b | Intentional workspace improvements and library search |
 | Milestone 4.1 | 27ac6c7 | Shared safe draft storage and edge-case tests |
 | Milestone 4.2 | 7094258 | Immutable version-bound Reading history and answer review |
+| Private module workspaces | de4a9df | Local PDF/OCR import, in-app Reading/Listening/Writing/Speaking practice and reviewed source library |
 
 Do not stage unrelated root files, backups, research, or vocabulary to create a checkpoint. User approval can cover a series of commits/pushes in a session; inspect its actual scope. Never infer standing permission from this document alone.
 
@@ -113,12 +116,12 @@ The vocabulary bank is private learner material, not a shipped glossary. Preserv
 
 1. Local backup/export and validation-first restore, preserving immutable records and reporting conflicts/corruption.
 2. Objective question rules in tested batches: Y/N/NG, completion/word limits, multiple responses, matching information/features/endings, and visual labels. Model answer alternatives separately from selecting several answers; define group reuse/cardinality explicitly.
-3. Private importer pilot for one legitimately supplied Reading passage using supported types. Establish private paths and build exclusions before actual content import. Validate extracted text, instructions, IDs, keys, and assets; human review gates activation. Add PDF/OCR dependencies only when actual files justify them.
+3. Extend the implemented PDF/OCR-based importer into fully structured, question-specific content packages. Validate remaining source mappings and keys; do not confuse available source PDFs or OCR candidates with ready tests. Private paths, build exclusions and review gates are already in place.
 4. Full Reading examination, review flags, highlighting, and verified source evidence. Real practice uses an approved authentic package; synthetic fixtures are QA material only.
-5. Listening with local audio, four parts/40 questions, explicit practice/examination playback policies, sessions, marking, and reviewed transcript evidence.
+5. Extend the implemented Listening practice player/answer sheets with explicit examination playback policies, fully structured question controls, and verified transcript evidence.
 6. Local AI service and one real evidence-grounded Reading explanation; then Listening explanations. Test schemas, quotations, unavailable providers, timeout/cancellation, retry limits, cache invalidation, latency, and model/prompt versions. No simulated feedback labelled live AI.
-7. Writing editors/history, followed by rubric/visual-grounded feedback and calibrated score estimates.
-8. Speaking recording/history, then transcription and supported language/fluency feedback; validated acoustic pronunciation assessment is a separate gate.
+7. Add rubric/visual-grounded Writing feedback and calibrated estimates to the implemented Task 1/2 editors/history.
+8. Add transcription and supported language/fluency feedback to the implemented Speaking recording/history; validated acoustic pronunciation remains a separate gate.
 9. Evidence-based progress analytics, private vocabulary active recall, and history-grounded learning coaching.
 10. Integrated browser/accessibility/responsive-theme, recovery, privacy, and runtime-performance verification. Public distribution remains separate.
 
@@ -135,10 +138,14 @@ From frontend/, run:
 
 Browser: run a production preview at 127.0.0.1:5178 and an isolated test Chrome debugging on 9229, then node scripts/readingHistory.browser.cjs. Overrides are documented in the script. It creates/disposes its own browser contexts; never clear learner browser data. Checks cover real IndexedDB operations/concurrency, corrupt/unsupported records, failures/retry, sessions/expiry, Matching Headings, historical snapshots, legacy summaries, older rows, responsive layout, and dark appearance.
 
-Current verification: 60 Node tests and 34 browser checks pass; production build and application/test TypeScript checks pass. Lint exits successfully with one known set-state-in-effect warning in ReadingExam.tsx concerning persistence-result reporting. CSS and grading rules are unchanged; no new dependencies were added for history.
+Current verification: 84 Node tests and 64 browser checks pass (34 existing Reading/history checks plus 30 private-module checks); production build and application/test TypeScript checks pass. Lint exits successfully with one known set-state-in-effect warning in ReadingExam.tsx concerning persistence-result reporting. Existing Reading draft keys, core grading and archive behavior remain unchanged. The library and new workspaces follow the installed Apple Design Skill. PDF.js is used for original PDF rendering/extraction; local OCR uses Tesseract and a canvas renderer. Private source material is excluded from Git and builds.
 
 Inspect exact Git diffs and staged paths before checkpointing. Include only scoped source, tests, and canonical documentation. Exclude research originals, vocabulary, backups, credentials, private study material, and build output.
 
 ## 9. Provenance and maintenance
 
 This handoff replaces outdated implementation claims with verified source/Git/test behavior as of 1 November 2026. The two original research documents in docs/research/ and the private vocabulary bank were not rewritten or published. Their observations remain historical evidence, not current backend facts. Update milestone status from actual commits and test results; never treat this roadmap as implemented functionality.
+
+## Private workspace checkpoint
+
+The local folder supplied by the learner yielded 10 PDFs (987 pages, 983 with extracted/OCR text) and 59 audio files. Nine PDFs are study documents and one is a transcript. These are source documents, not a claim that every test is fully structured or verified. Local OCR section suggestions require review. Cambridge 6 Test 1 has source-checked Reading/Listening key drafts and page/audio mappings for all four workspaces; activation still requires user confirmation. No source pages or keys are included in Git. The complete Cambridge series is not present. DOC/ZIP/RAR contents, missing audio, other tests' keys, unsupported instructions and AI assessments remain unfinished.
