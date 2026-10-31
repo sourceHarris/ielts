@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Learner-supplied books, extracted test data, audio and local import configuration.
+/private-content/
+/frontend/private-content/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

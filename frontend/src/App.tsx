@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,6 +22,8 @@ import {
 } from 'lucide-react'
 
 import PracticeLibrary from './PracticeLibrary'
+import { PrivateLibrary, PrivateProgress } from './practice/PrivateLibrary'
+import type { PracticeSkill } from './practice/privatePractice'
 import ReadingHistoryReview from './ReadingHistoryReview'
 import { HISTORY_CHANGED, readReadingAttempts } from './reading/attemptHistory'
 import type { HistoryRead } from './reading/attemptHistory'
@@ -30,6 +32,9 @@ import type { ReadingAttempt } from './ReadingPractice'
 import { twoPassageTest } from './reading/twoPassageTest'
 import { matchingHeadingsTest } from './reading/matchingHeadingsTest'
 import './App.css'
+
+const ImportReview = lazy(() => import('./practice/ImportReview'))
+const PracticeWorkspace = lazy(() => import('./practice/PracticeWorkspace'))
 
 type Theme = 'light' | 'dark'
 type SkillId = 'reading' | 'listening' | 'writing' | 'speaking'
@@ -44,6 +49,9 @@ type Page =
   | 'reading-two-passage'
   | 'reading-headings'
   | `reading-review/${string}`
+  | `import/${string}`
+  | `private-test/${string}`
+  | `private-review/${string}`
   | `skill-${SkillId}`
 
 type DemoAttempt = {
@@ -96,7 +104,7 @@ const skills: Array<{
     detail:
       'Practice with audio, questions, transcripts, and clear explanations after submission.',
     icon: Headphones,
-    note: 'Interface planned',
+    note: 'Audio & answer sheet',
   },
   {
     id: 'writing',
@@ -105,7 +113,7 @@ const skills: Array<{
     detail:
       'Work on Task 1 and Task 2 in a focused editor, then receive carefully labelled AI-assisted feedback.',
     icon: PenLine,
-    note: 'Interface planned',
+    note: 'Task 1 & Task 2 editor',
   },
   {
     id: 'speaking',
@@ -114,7 +122,7 @@ const skills: Array<{
     detail:
       'Record answers, review transcripts, and explore evidence-based language feedback.',
     icon: Mic2,
-    note: 'Interface planned',
+    note: 'Record & play back',
   },
 ]
 
@@ -178,6 +186,8 @@ function readHistory(): DemoAttempt[] {
 function routeFromHash(): Page {
   const hash = window.location.hash.replace(/^#\/?/, '')
   if (hash.startsWith('reading-review/')) return hash as Page
+  if (/^import\/(reading|listening|writing|speaking)(\/[a-f0-9]{64})?$/.test(hash) ||
+      /^private-(test|review)\/.+$/.test(hash)) return hash as Page
 
   if (
     hash === 'practice-ai' ||
@@ -238,7 +248,8 @@ function Nav({
   mobile?: boolean
 }) {
   const selected =
-    page.startsWith('reading-review/') ? 'progress' :
+    page.startsWith('reading-review/') || page.startsWith('private-review/') ? 'progress' :
+    page.startsWith('import/') || page.startsWith('private-test/') ? 'practice' :
     page === 'reading-demo' ||
     page === 'reading-mini' ||
     page === 'reading-two-passage' ||
@@ -408,15 +419,15 @@ function Overview({
           </h2>
 
           <p>
-            Build your Reading confidence, one passage at a time.
-            Answer eight questions and learn from the evidence.
+            Open your private test library. Read, listen, write,
+            or record a speaking session in one focused workspace.
           </p>
 
           <a
             className="button button-primary"
-            href="#/reading-mini"
+            href="#/practice"
           >
-            Practise Reading
+            Open your test library
             <ArrowRight
               size={18}
               aria-hidden="true"
@@ -424,7 +435,7 @@ function Overview({
           </a>
 
           <small>
-            15 minutes · 8 questions · Answers saved automatically
+            Original material · Timed workspaces · Private session history
           </small>
         </div>
 
@@ -486,7 +497,7 @@ function Overview({
           <strong>
             Practice results, not official IELTS scores.
           </strong>{' '}
-          This early demo checks answers directly.
+          Objective practice checks answers against a reviewed key.
           AI-assisted evaluation will be clearly identified
           when added.
         </p>
@@ -528,94 +539,17 @@ function Practice() {
   return <PracticeLibrary />
 }
 
-function SkillDetail({
-  skillId,
-}: {
-  skillId: SkillId
-}) {
-  const skill = skills.find(
-    (s) => s.id === skillId
-  )!
-
-  const Icon = skill.icon
-
-  return (
-    <div className="page-section narrow-page">
-      <a
-        href="#/practice"
-        className="back-link"
-      >
-        <ArrowLeft
-          size={17}
-          aria-hidden="true"
-        />
-        Practice library
-      </a>
-
-      <div className="detail-icon">
-        <Icon
-          size={28}
-          strokeWidth={1.6}
-          aria-hidden="true"
-        />
-      </div>
-
-      <PageIntro
-        eyebrow="IELTS SKILLS"
-        title={`${skill.title} practice`}
-        description={skill.detail}
-      />
-
-      <section className="detail-panel">
-        <h2>
-          {skillId === 'reading'
-            ? 'Try the Reading mini-test'
-            : 'This workspace is being designed'}
-        </h2>
-
-        <p>
-          {skillId === 'reading'
-            ? 'An original 8-question passage with a 15-minute clock, autosaved answers, question navigation and answer-by-answer review. No server is required.'
-            : `The ${skill.title.toLowerCase()} test workspace will follow the same calm design language, with controls appropriate to the task. This is a design preview, not a functioning exam yet.`}
-        </p>
-
-        {skillId === 'reading' && (
-          <>
-            <a
-              className="button button-primary"
-              href="#/reading-mini"
-            >
-              Start Reading Mini-Test
-              <ArrowRight
-                size={17}
-                aria-hidden="true"
-              />
-            </a>{' '}
-
-            <a
-              className="button button-secondary"
-              href="#/reading-demo"
-            >
-              Try 3-Question Demo
-            </a>
-          </>
-        )}
-
-        {skillId !== 'reading' && (
-          <a
-            className="button button-secondary"
-            href="#/practice"
-          >
-            Browse Other Skills
-            <ArrowRight
-              size={17}
-              aria-hidden="true"
-            />
-          </a>
-        )}
-      </section>
-    </div>
-  )
+function SkillDetail({ skillId }: { skillId: SkillId }) {
+  const skill = skills.find(item => item.id === skillId)!
+  return <div className="page-section">
+    <a href="#/practice" className="back-link"><ArrowLeft size={16} /> All practice</a>
+    <header className="workspace-header"><div><p className="eyebrow">IELTS ACADEMIC</p>
+      <h1>{skill.title}. Make it your strength.</h1><p className="intro-description">{skill.summary}</p></div>
+      <a className="button button-primary" href={`#/import/${skillId}`}>Set up a test <ArrowRight size={17} /></a>
+    </header>
+    <PrivateLibrary skill={skillId} />
+    {skillId === 'reading' && <a className="button button-secondary" href="#/reading-mini">Try the built-in Reading mini-test</a>}
+  </div>
 }
 
 function Progress({
@@ -645,6 +579,8 @@ function Progress({
         description="A quiet record of practice, built around learning rather than competing with other students."
       />
 
+      <PrivateProgress />
+
       {archive === null && <p role="status">Loading saved attempt history...</p>}
       {archive?.kind === 'unavailable' && <div role="alert">
         <p>Saved attempt history could not be loaded. Existing records have not been changed.</p>
@@ -665,13 +601,12 @@ function Progress({
           </span>
 
           <h3>
-            Your progress starts with one session.
+            Original Reading practice
           </h3>
 
           <p>
-            Complete the Reading mini-test or demo
-            and your result will appear here.
-            Nothing is sent to a server.
+            Results from built-in Reading exercises appear here.
+            Your private test sessions are listed above.
           </p>
 
           <a
@@ -1226,6 +1161,12 @@ function App() {
             history={archive} onRetry={retryHistory} />
         )}
 
+        <Suspense fallback={<p role="status">Opening your practice workspace...</p>}>
+          {page.startsWith('import/') && <ImportReview key={page} skill={page.split('/')[1] as PracticeSkill} bookId={page.split('/')[2]} />}
+          {page.startsWith('private-test/') && <PracticeWorkspace key={page} id={decodeURIComponent(page.slice('private-test/'.length))} />}
+          {page.startsWith('private-review/') && <PracticeWorkspace key={page} review id={decodeURIComponent(page.slice('private-review/'.length))} />}
+        </Suspense>
+
         {page === 'reading-demo' && (
           <ReadingDemo onComplete={storeAttempt} />
         )}
@@ -1271,7 +1212,7 @@ function App() {
 
         <footer className="site-footer">
           <span>
-            Practice Room · Interface prototype
+            Practice Room · Private IELTS practice
           </span>
 
           <span>

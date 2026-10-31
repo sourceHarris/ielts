@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { ArrowRight, BookOpen, ExternalLink, Headphones, Mic2, PenLine, Search } from 'lucide-react'
 import './PracticeLibrary.css'
+import { ModuleLaunchers, PrivateLibrary } from './practice/PrivateLibrary'
+import type { PracticeSkill } from './practice/privatePractice'
 
 type Skill = 'Reading' | 'Listening' | 'Writing' | 'Speaking'
 type Filter = 'All' | Skill
@@ -129,6 +131,7 @@ export default function PracticeLibrary() {
   const [filter, setFilter] = useState<Filter>('All')
   const [query, setQuery] = useState('')
   const visible = entries.filter((item) =>
+    !item.publisherHosted &&
     (filter === 'All' || item.skills.includes(filter)) &&
     `${item.title} ${item.description} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase())
   )
@@ -138,8 +141,10 @@ export default function PracticeLibrary() {
       <header className="page-intro">
         <p className="eyebrow">PRACTICE LIBRARY</p>
         <h1>Choose your next test.</h1>
-        <p className="intro-description">Browse IELTS-style exercises and free practice resources. Choose a skill to narrow the list.</p>
+        <p className="intro-description">Your tests, your work, your progress. Practise all four skills here with your own original study material.</p>
       </header>
+
+      <ModuleLaunchers />
 
       <label className="library-search">
         <Search size={20} aria-hidden="true" />
@@ -169,10 +174,12 @@ export default function PracticeLibrary() {
         })}
       </div>
 
-      <p className="library-result-count" role="status">{visible.length} {visible.length === 1 ? 'resource' : 'resources'}{filter !== 'All' ? ` for ${filter.toLowerCase()}` : ''}</p>
-      {visible.length === 0 && (
+      <PrivateLibrary skill={filter === 'All' ? undefined : filter.toLowerCase() as PracticeSkill} query={query} />
+      <div className="workspace-section-title"><div><p className="eyebrow">BUILT-IN PRACTICE</p><h2>Original Reading exercises</h2></div></div>
+      <p className="library-result-count" role="status">{visible.length} {visible.length === 1 ? 'exercise' : 'exercises'}{filter !== 'All' ? ` for ${filter.toLowerCase()}` : ''}</p>
+      {visible.length === 0 && query && (
         <div className="empty-state">
-          <h2>No matching resources</h2>
+          <h2>No matching original exercises</h2>
           <p>Try another topic or choose a different skill.</p>
           <button
             type="button"
@@ -218,7 +225,10 @@ export default function PracticeLibrary() {
           </article>
         ))}
       </section>
-      <p className="unified-practice-footnote">External resources open on their publisher's website. Their results aren't automatically saved in this app.</p>
+      <details className="supplementary-resources"><summary>Supplementary publisher resources</summary>
+        <p className="workspace-muted">Optional reference links. Your actual practice takes place in the workspaces above.</p>
+        <div>{entries.filter(item => item.publisherHosted).map(item => <a href={item.href} key={item.id} target="_blank" rel="noopener noreferrer">{item.source}<ExternalLink size={13} aria-hidden="true" /></a>)}</div>
+      </details>
     </div>
   )
 }
