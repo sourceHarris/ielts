@@ -376,7 +376,7 @@ function Overview({
     <div className="page-section">
       <PageIntro
         eyebrow="YOUR PRACTICE SPACE"
-        title="Make every session count."
+        title="A little practice. A clearer path."
         description="A calmer way to prepare for IELTS. Choose a skill, focus on the work, and learn from what you miss."
       />
 
@@ -386,23 +386,23 @@ function Overview({
       >
         <div className="focus-main">
           <p className="eyebrow">
-            A GOOD PLACE TO START
+            YOUR NEXT SESSION
           </p>
 
           <h2 id="focus-title">
-            Read with purpose.
+            Find your focus.
           </h2>
 
           <p>
-            Try three original Reading questions,
-            then review the evidence behind every answer.
+            Build your Reading confidence, one passage at a time.
+            Answer eight questions and learn from the evidence.
           </p>
 
           <a
             className="button button-primary"
-            href="#/reading-demo"
+            href="#/reading-mini"
           >
-            Start Reading Demo
+            Practise Reading
             <ArrowRight
               size={18}
               aria-hidden="true"
@@ -410,31 +410,24 @@ function Overview({
           </a>
 
           <small>
-            Untimed sample · No account required
+            15 minutes · 8 questions · Answers saved automatically
           </small>
         </div>
 
-        <div
-          className="answer-sheet"
-          aria-label="Preview of the three-question answer navigator"
-        >
-          <span className="sheet-title">
-            YOUR ANSWER SHEET
-          </span>
-
-          <div
-            className="sheet-bubbles"
-            aria-hidden="true"
-          >
-            <span>1</span>
-            <span>2</span>
-            <span>3</span>
-          </div>
-
-          <span className="sheet-caption">
-            Read → Answer → Review
-          </span>
-        </div>
+        <ol className="practice-method" aria-label="How practice works">
+          <li>
+            <BookOpen size={20} aria-hidden="true" />
+            <div><strong>Read closely</strong><span>Find the details that matter.</span></div>
+          </li>
+          <li>
+            <PenLine size={20} aria-hidden="true" />
+            <div><strong>Make your choice</strong><span>Work at your own pace, within the timer.</span></div>
+          </li>
+          <li>
+            <CheckCircle2 size={20} aria-hidden="true" />
+            <div><strong>Understand why</strong><span>Review the evidence for each answer.</span></div>
+          </li>
+        </ol>
       </section>
 
       <div className="section-heading">

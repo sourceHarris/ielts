@@ -11,6 +11,7 @@ import ReadingExam from './ReadingExam'
 import type { ReadingAttempt } from './ReadingExam'
 import { cityShadeTest } from './reading/miniTest'
 import type { ReadingTest } from './reading/types'
+import './ReadingPractice.css'
 
 export type { ReadingAttempt } from './ReadingExam'
 
@@ -237,20 +238,10 @@ export default function ReadingPractice({
       </header>
 
       <section
-        className="paper-panel"
-        style={{
-          padding: 28,
-          maxWidth: 680,
-        }}
+        className="paper-panel session-panel"
       >
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            marginBottom: 20,
-            flexWrap: 'wrap',
-          }}
+          className="session-metadata"
         >
           <span className="answered-pill">
             <BookOpen
@@ -327,12 +318,7 @@ export default function ReadingPractice({
         )}
 
         <div
-          style={{
-            display: 'flex',
-            gap: 12,
-            flexWrap: 'wrap',
-            marginTop: 24,
-          }}
+          className="session-actions"
         >
           {session.status === 'new' && (
             <button
@@ -418,18 +404,14 @@ export default function ReadingPractice({
         {error && (
           <p
             role="alert"
-            style={{
-              marginTop: 16,
-              color: '#b42330',
-            }}
+            className="session-error"
           >
             {error}
           </p>
         )}
 
         <p
-          className="source-label"
-          style={{ marginTop: 24 }}
+          className="source-label session-note"
         >
           Original practice material. Results are
           not official IELTS band scores.

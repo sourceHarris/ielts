@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, BookOpen, ExternalLink, Headphones, Mic2, PenLine } from 'lucide-react'
+import { ArrowRight, BookOpen, ExternalLink, Headphones, Mic2, PenLine, Search } from 'lucide-react'
 import './PracticeLibrary.css'
 
 type Skill = 'Reading' | 'Listening' | 'Writing' | 'Speaking'
@@ -127,7 +127,11 @@ const filterIcons = { Reading: BookOpen, Listening: Headphones, Writing: PenLine
 
 export default function PracticeLibrary() {
   const [filter, setFilter] = useState<Filter>('All')
-  const visible = entries.filter((item) => filter === 'All' || item.skills.includes(filter))
+  const [query, setQuery] = useState('')
+  const visible = entries.filter((item) =>
+    (filter === 'All' || item.skills.includes(filter)) &&
+    `${item.title} ${item.description} ${item.source}`.toLowerCase().includes(query.trim().toLowerCase())
+  )
 
   return (
     <div className="page-section unified-practice-page">
@@ -137,6 +141,16 @@ export default function PracticeLibrary() {
         <p className="intro-description">Browse IELTS-style exercises and free practice resources. Choose a skill to narrow the list.</p>
       </header>
 
+      <label className="library-search">
+        <Search size={20} aria-hidden="true" />
+        <span className="visually-hidden">Search practice tests and resources</span>
+        <input
+          type="search"
+          placeholder="Find a test, topic, or resource"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
       <div className="unified-skill-filters" role="group" aria-label="Filter practice by IELTS skill">
         {filters.map((option) => {
           const Icon = option === 'All' ? null : filterIcons[option]
@@ -155,6 +169,23 @@ export default function PracticeLibrary() {
         })}
       </div>
 
+      <p className="library-result-count" role="status">{visible.length} {visible.length === 1 ? 'resource' : 'resources'}{filter !== 'All' ? ` for ${filter.toLowerCase()}` : ''}</p>
+      {visible.length === 0 && (
+        <div className="empty-state">
+          <h2>No matching resources</h2>
+          <p>Try another topic or choose a different skill.</p>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => {
+              setQuery('')
+              setFilter('All')
+            }}
+          >
+            Clear search and filters
+          </button>
+        </div>
+      )}
       <section className="unified-practice-list" aria-label="Practice tests and resources">
         {visible.map((item) => (
           <article key={item.id} className="unified-practice-card">
@@ -166,7 +197,7 @@ export default function PracticeLibrary() {
                   aria-label={item.publisherHosted ? 'Publisher-hosted resource' : 'Original exercise'}
                 />
                 <div className="unified-practice-titles">
-                  <p className="unified-practice-source">{item.source}</p>
+                  <p className="unified-practice-source">{item.source} · {item.publisherHosted ? 'External resource' : 'In-app practice'}</p>
                   <h2>{item.title}</h2>
                 </div>
               </div>

@@ -1,19 +1,26 @@
-/* Uses Version 3 semantic colors. Nothing in the content layer uses glass. */
+/* Reading content stays opaque and shares the app's semantic colors. */
+.session-panel { max-width:760px; padding:clamp(24px,4vw,40px); }
+.session-panel > p:not(.source-label):not(.session-error) { color:var(--muted); line-height:1.75; max-width:58ch; }
+.session-panel h2 { font-size:clamp(1.5rem,2.8vw,2rem); letter-spacing:-.035em; }
+.session-metadata { display:flex; align-items:center; gap:10px; margin-bottom:32px; flex-wrap:wrap; }
+.session-actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:28px; }
+.session-error { margin-top:16px; color:var(--accent-ink); line-height:1.6; }
+.session-note { margin-top:32px; }
 .reading-mini-header { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:25px; }
 .reading-mini-header h1 { font-size:clamp(29px,3vw,40px); margin:10px 0 9px; }
 .reading-mini-subtitle { color:var(--muted); font-size:14px; margin:0; line-height:1.55; }
-.reading-clock { display:inline-flex; align-items:center; gap:9px; padding:11px 15px; flex-shrink:0; font-weight:750; font-variant-numeric:tabular-nums; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+.reading-clock { display:inline-flex; align-items:center; gap:9px; padding:12px 16px; flex-shrink:0; font-weight:650; font-size:1.125rem; font-variant-numeric:tabular-nums; color:var(--ink); background:var(--surface); border:1px solid var(--border); border-radius:14px; }
 .reading-clock-urgent { border-color:var(--accent); color:var(--accent-ink); }
 .reading-mini-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.07fr); gap:18px; align-items:start; }
 .reading-passage { position:sticky; top:20px; max-height:calc(100svh - 40px); overflow:auto; }
 .reading-passage h2 { margin:11px 0 22px; font-size:27px; }
-.reading-passage .passage-text { font-size:17px; line-height:1.86; margin-bottom:23px; }
+.reading-passage .passage-text { font-size:1.125rem; line-height:1.9; margin-bottom:24px; max-width:68ch; }
 .reading-questions-head { display:flex; justify-content:space-between; align-items:flex-start; gap:15px; }
 .reading-questions-head h2 { margin:9px 0 0; }
 .reading-navigator { display:flex; flex-wrap:wrap; gap:8px; margin:22px 0 29px; }
 .reading-nav-number { display:grid; place-items:center; min-width:44px; min-height:44px; padding:0 9px; background:var(--surface); border:1px solid var(--border); color:var(--ink); border-radius:10px; font-weight:650; }
 .reading-nav-number:hover { border-color:var(--accent); }
-.reading-nav-number.is-answered { color:var(--accent-ink); background:var(--accent-surface); border-color:var(--accent); }
+.reading-nav-number.is-answered { color:var(--accent-ink); background:var(--accent-surface); border-color:var(--accent); font-weight:800; box-shadow:inset 0 -3px var(--accent); }
 .reading-group-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:13px 0; border-top:1px solid var(--border); font-size:13px; color:var(--ink); }
 .reading-group-heading span { font-size:11px; font-weight:650; letter-spacing:.07em; color:var(--muted); }
 .reading-inline-group { clear:both; margin:26px 0 -12px; }
@@ -40,3 +47,4 @@
 .reading-result p:last-child { margin:0; font-size:14px; color:var(--muted); line-height:1.5; }
 @media (max-width:1120px) { .reading-mini-grid { grid-template-columns:minmax(0,1fr); } .reading-passage { position:static; max-height:none; overflow:visible; } }
 @media (max-width:600px) { .reading-mini-header { align-items:flex-start; } .reading-clock { padding:9px; font-size:14px; } .reading-mini .paper-panel { padding:20px; } .reading-passage .passage-text { font-size:17px; } }
+@media (max-width:600px) { .reading-mini-header { flex-wrap:wrap; } .session-actions { flex-direction:column; } .session-actions .button { width:100%; } .reading-question { scroll-margin-top:90px; } }

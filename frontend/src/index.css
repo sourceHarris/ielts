@@ -9,7 +9,8 @@
   font-weight: 400;
   color-scheme: light;
 
-  --canvas: #F8F8F8;
+  --canvas: #F5F5F7;
+  --ambient-shadow: rgba(0,0,0,.035);
   --surface: #FFFFFF;
   --surface-muted: #F2F2F2;
   --ink: #171717;
@@ -48,7 +49,8 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --canvas: #101010;
+  --canvas: #111113;
+  --ambient-shadow: rgba(0,0,0,.16);
   --surface: #1B1B1B;
   --surface-muted: #272727;
   --ink: #F7F7F7;
@@ -89,7 +91,10 @@
 html { scroll-behavior: smooth; background: var(--canvas); }
 body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); }
 a { color: inherit; text-decoration: none; }
-button, input { font: inherit; }
+button, input, select, textarea { font: inherit; }
+select, textarea { max-width:100%; }
+svg { flex-shrink:0; }
+h1,h2,h3,p,a,button { overflow-wrap:break-word; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
