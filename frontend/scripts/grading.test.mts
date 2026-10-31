@@ -1,7 +1,7 @@
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
-
+import { matchingHeadingsTest } from '../src/reading/matchingHeadingsTest.ts'
 import { gradeReadingTest } from '../src/reading/grading.ts'
 import type { ReadingTest } from '../src/reading/types.ts'
 
@@ -107,4 +107,21 @@ test('grades questions across multiple passages', () => {
   assert.equal(result.correct, 3)
   assert.equal(result.unanswered, 0)
   assert.equal(result.questions[2].questionNumber, 3)
+})
+
+
+test('grades Matching Headings answers correctly', () => {
+  const result = gradeReadingTest(matchingHeadingsTest, {
+    'night-sky-q1': 'iv',
+    'night-sky-q2': 'i',
+    'night-sky-q3': 'ii',
+    'night-sky-q4': 'v',
+  })
+
+  assert.equal(result.total, 4)
+  assert.equal(result.correct, 3)
+  assert.equal(result.unanswered, 0)
+
+  assert.equal(result.questions[0].isCorrect, true)
+  assert.equal(result.questions[3].isCorrect, false)
 })

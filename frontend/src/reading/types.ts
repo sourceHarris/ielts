@@ -1,5 +1,9 @@
 
-export type QuestionType = 'tfng' | 'choice' | 'short'
+export type QuestionType =
+  | 'tfng'
+  | 'choice'
+  | 'short'
+  | 'matching-headings'
 
 export type QuestionOption = {
   value: string

@@ -18,6 +18,20 @@ type LibraryEntry = {
 }
 
 const entries: LibraryEntry[] = [
+  
+  {
+    id: 'night-sky-headings',
+    title: 'Saving the Night Sky',
+    description:
+      'Practise identifying the main idea of each paragraph by matching it to the most suitable heading.',
+    skills: ['Reading'],
+    source: 'Reading · Matching Headings',
+    details: ['4 questions', '10 minutes', 'Saved answers'],
+    href: '#/reading-headings',
+    action: 'Start practice',
+    publisherHosted: false,
+  },
+
   {
     id: 'city-shade',
     title: 'A City Measured in Shade',
