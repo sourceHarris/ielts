@@ -22,8 +22,8 @@ import {
 } from 'lucide-react'
 
 import PracticeLibrary from './PracticeLibrary'
+import CambridgeReading, { CambridgeReadingCard } from './CambridgeReading'
 import { PrivateLibrary, PrivateProgress } from './practice/PrivateLibrary'
-import type { PracticeSkill } from './practice/privatePractice'
 import ReadingHistoryReview from './ReadingHistoryReview'
 import { HISTORY_CHANGED, readReadingAttempts } from './reading/attemptHistory'
 import type { HistoryRead } from './reading/attemptHistory'
@@ -33,7 +33,6 @@ import { twoPassageTest } from './reading/twoPassageTest'
 import { matchingHeadingsTest } from './reading/matchingHeadingsTest'
 import './App.css'
 
-const ImportReview = lazy(() => import('./practice/ImportReview'))
 const PracticeWorkspace = lazy(() => import('./practice/PracticeWorkspace'))
 
 type Theme = 'light' | 'dark'
@@ -49,8 +48,7 @@ type Page =
   | 'reading-two-passage'
   | 'reading-headings'
   | `reading-review/${string}`
-  | `import/${string}`
-  | `private-test/${string}`
+  | 'cambridge-1-reading-test-1'
   | `private-review/${string}`
   | `skill-${SkillId}`
 
@@ -186,8 +184,8 @@ function readHistory(): DemoAttempt[] {
 function routeFromHash(): Page {
   const hash = window.location.hash.replace(/^#\/?/, '')
   if (hash.startsWith('reading-review/')) return hash as Page
-  if (/^import\/(reading|listening|writing|speaking)(\/[a-f0-9]{64})?$/.test(hash) ||
-      /^private-(test|review)\/.+$/.test(hash)) return hash as Page
+  if (/^private-review\/.+$/.test(hash)) return hash as Page
+  if (hash.startsWith('import/') || hash.startsWith('private-test/')) return 'practice'
 
   if (
     hash === 'practice-ai' ||
@@ -202,7 +200,7 @@ function routeFromHash(): Page {
     hash === 'reading-demo' ||
     hash === 'reading-mini' ||
     hash === 'reading-two-passage' ||
-    hash === 'reading-headings'
+    hash === 'reading-headings' || hash === 'cambridge-1-reading-test-1'
   ) {
     return hash
   }
@@ -249,7 +247,7 @@ function Nav({
 }) {
   const selected =
     page.startsWith('reading-review/') || page.startsWith('private-review/') ? 'progress' :
-    page.startsWith('import/') || page.startsWith('private-test/') ? 'practice' :
+    page === 'cambridge-1-reading-test-1' ? 'practice' :
     page === 'reading-demo' ||
     page === 'reading-mini' ||
     page === 'reading-two-passage' ||
@@ -399,6 +397,7 @@ function Overview({
 }) {
   return (
     <div className="page-section">
+      <CambridgeReadingCard />
       <PageIntro
         eyebrow="YOUR PRACTICE SPACE"
         title="A little practice. A clearer path."
@@ -545,7 +544,6 @@ function SkillDetail({ skillId }: { skillId: SkillId }) {
     <a href="#/practice" className="back-link"><ArrowLeft size={16} /> All practice</a>
     <header className="workspace-header"><div><p className="eyebrow">IELTS ACADEMIC</p>
       <h1>{skill.title}. Make it your strength.</h1><p className="intro-description">{skill.summary}</p></div>
-      <a className="button button-primary" href={`#/import/${skillId}`}>Set up a test <ArrowRight size={17} /></a>
     </header>
     <PrivateLibrary skill={skillId} />
     {skillId === 'reading' && <a className="button button-secondary" href="#/reading-mini">Try the built-in Reading mini-test</a>}
@@ -1083,6 +1081,8 @@ function App() {
     })
   }
 
+  if (page === 'cambridge-1-reading-test-1') return <CambridgeReading />
+
   return (
     <div className="app-frame">
       <a
@@ -1162,8 +1162,6 @@ function App() {
         )}
 
         <Suspense fallback={<p role="status">Opening your practice workspace...</p>}>
-          {page.startsWith('import/') && <ImportReview key={page} skill={page.split('/')[1] as PracticeSkill} bookId={page.split('/')[2]} />}
-          {page.startsWith('private-test/') && <PracticeWorkspace key={page} id={decodeURIComponent(page.slice('private-test/'.length))} />}
           {page.startsWith('private-review/') && <PracticeWorkspace key={page} review id={decodeURIComponent(page.slice('private-review/'.length))} />}
         </Suspense>
 

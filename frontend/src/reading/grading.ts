@@ -1,5 +1,5 @@
 
-import type { ReadingTest } from './types'
+import type { ReadingTest } from './types.ts'
 
 export type ReadingAnswers = Record<string, string>
 

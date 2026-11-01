@@ -8,8 +8,11 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --test scripts/grading.test.mts scripts/sessionStorage.test.mts scripts/attemptHistory.test.mts scripts/privatePractice.test.mts",
-    "import:private": "node scripts/import-private.mjs"
+    "test": "node --test scripts/grading.test.mts scripts/sessionStorage.test.mts scripts/attemptHistory.test.mts scripts/privatePractice.test.mts scripts/structuredExtraction.test.mts scripts/structuredReading.test.mts",
+    "import:private": "node scripts/import-private.mjs",
+    "extract:private": "node scripts/extract-tests.mjs",
+    "extract:layout": "node scripts/extract-layout.mjs",
+    "prepare:private": "node scripts/extract-layout.mjs && node scripts/extract-layout.mjs --refine && node scripts/extract-tests.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.64.0",

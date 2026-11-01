@@ -4,7 +4,6 @@ import { assetUrl, emptyWork, markPrivatePractice, practiceLabels, validPrivateA
 import type { PracticeConfig, PracticeWork, PrivateAttempt } from './privatePractice'
 import type { ReadingResult } from '../reading/grading'
 import { completePractice, localData } from './privateStore'
-import PdfPage from './PdfPage'
 import './workspaces.css'
 
 type Loaded = { config: PracticeConfig; work: PracticeWork; resultSnapshot?: ReadingResult | null }
@@ -36,7 +35,6 @@ export default function PracticeWorkspace({ id, review = false }: { id: string; 
   const [error, setError] = useState('')
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'failed'>('saved')
   const [archiveState, setArchiveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
-  const [page, setPage] = useState(1)
   const [now, setNow] = useState(Date.now)
   const [task, setTask] = useState(0)
   const [part, setPart] = useState(1)
@@ -77,7 +75,7 @@ export default function PracticeWorkspace({ id, review = false }: { id: string; 
         }
         if (!validWork(data.work, data.config.id) || !data.config.book?.assetId) throw Error('The saved session could not be verified. It has not been changed.')
         if (!cancelled) {
-          current.current = data; setLoaded(data); setPage(data.config.firstPage)
+          current.current = data; setLoaded(data)
           setArchiveState(data.work.submittedAt ? 'saved' : 'idle')
         }
       } catch (error) { if (!cancelled) setError((error as Error).message) }
@@ -208,13 +206,7 @@ export default function PracticeWorkspace({ id, review = false }: { id: string; 
       {!review && archiveState === 'saved' && <button className="button button-secondary" onClick={() => {
         if (window.confirm('Start another attempt? Your completed attempt stays in history.')) { setArchiveState('idle'); autoFinished.current = false; apply(emptyWork(config.id)) }
       }}>Start another attempt</button>}</section>}
-    <div className="workspace-split">
-      <section className="workspace-source" aria-label="Original test material"><div className="source-toolbar"><strong>Original material</strong>
-        <div><button aria-label="Previous source page" disabled={page <= config.firstPage} onClick={() => setPage(page - 1)}>←</button>
-          <label>Page <input aria-label="Source page" type="number" min={config.firstPage} max={config.lastPage} value={page} onChange={event => setPage(Math.min(config.lastPage, Math.max(config.firstPage, Number(event.target.value) || config.firstPage)))} /> / {config.lastPage}</label>
-          <button aria-label="Next source page" disabled={page >= config.lastPage} onClick={() => setPage(page + 1)}>→</button></div></div>
-        <PdfPage assetId={config.book.assetId} page={page} title={config.book.title} />
-      </section>
+    <div className="workspace-history">
       <section className="workspace-sheet">
         {config.skill === 'listening' && <div className="workspace-player"><p className="eyebrow">ORIGINAL AUDIO · {audioIndex + 1} / {config.audioIds.length}</p>
           <audio key={config.audioIds[audioIndex]} controls preload="metadata" src={assetUrl(config.audioIds[audioIndex])} onError={() => setError('The original audio could not be played. Check the local library.')} />
@@ -230,13 +222,13 @@ export default function PracticeWorkspace({ id, review = false }: { id: string; 
         {config.skill === 'writing' && <><div className="workspace-tabs" role="group" aria-label="Writing task">{[0, 1].map(index => <button key={index} aria-pressed={task === index} onClick={() => setTask(index)}>Task {index + 1}{' '}<small>{wordCount(work.essays[index])} words</small></button>)}</div>
           <div className="workspace-section-title"><h2>Writing Task {task + 1}</h2><span>{task === 0 ? '150' : '250'} words minimum</span></div>
           <textarea className="essay-editor" aria-label={`Writing Task ${task + 1} response`} value={work.essays[task]} disabled={locked || !work.startedAt}
-            placeholder="Read the original task on the left. Write your response here."
+            placeholder="Your saved response"
             onChange={event => { const essays: [string, string] = [...work.essays]; essays[task] = event.target.value; apply({ ...work, essays }) }} />
           <div className="workspace-section-title"><span>{wordCount(work.essays[task])} words · {task === 0 ? 'Task Achievement' : 'Task Response'}, coherence, vocabulary, grammar</span>
             <button className="text-link" onClick={exportWriting}><Download size={15} />Export writing</button></div></>}
         {config.skill === 'speaking' && <><div className="workspace-tabs" role="group" aria-label="Speaking part">{[1, 2, 3].map(value => <button key={value} disabled={recording || micOpening} aria-pressed={part === value} onClick={() => setPart(value)}>Part {value}</button>)}</div>
           <h2>{part === 1 ? 'Introduce yourself. Keep it natural.' : part === 2 ? 'Prepare. Then keep talking.' : 'Develop your ideas.'}</h2>
-          <p className="workspace-muted">Use the original speaking prompts on the left. Your microphone is used only when you press Record.</p>
+          <p className="workspace-muted">Your saved notes and recordings stay in this browser.</p>
           {part === 2 && <div className="workspace-actions"><button className="button button-secondary" disabled={locked || !work.startedAt || recording || micOpening} onClick={() => setPreparationEnd(Date.now() + 60_000)}>One-minute preparation</button>
             {preparationEnd && <span role="timer">{clock(Math.max(0, Math.ceil((preparationEnd - now) / 1000)))} preparation</span>}</div>}
           <div className={`recorder-panel ${recording ? 'is-recording' : ''}`}><Mic size={32} aria-hidden="true" /><strong>{recording ? `Recording Part ${part} · ${clock(Math.max(0, Math.floor((now - recordStarted) / 1000)))}` : 'Ready when you are.'}</strong>

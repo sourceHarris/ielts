@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs'
 import { resolve, relative, extname } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
+import { readCuratedImage, readCuratedTest } from './curatedReading.ts'
 
 const directory = resolve(import.meta.dirname, '../../private-content')
 type Asset = { id: string; path: string; name: string; type: string; label: string }
@@ -43,6 +44,21 @@ async function serve(request: IncomingMessage, response: ServerResponse, next: (
   if (!trustedLocalRequest(request)) { json(403, { error: 'Private library is available only from this computer.' }); return }
   if (request.method !== 'GET' && request.method !== 'HEAD') { json(405, { error: 'Read-only library' }); return }
   try {
+    const curated = route.match(/^\/api\/private\/reading-tests\/([a-z0-9-]+)$/)
+    if (curated) {
+      const test = await readCuratedTest(curated[1])
+      json(test ? 200 : 404, test ?? { error: 'Test unavailable' })
+      return
+    }
+    const curatedImage = route.match(/^\/api\/private\/reading-images\/([a-f0-9]{64})$/)
+    if (curatedImage) {
+      const bytes = await readCuratedImage(curatedImage[1])
+      if (!bytes) { json(404, { error: 'Image unavailable' }); return }
+      response.setHeader('Content-Type', 'image/png')
+      response.setHeader('Content-Length', bytes.length)
+      response.end(request.method === 'HEAD' ? undefined : bytes)
+      return
+    }
     const catalog: Catalog = JSON.parse(await readFile(resolve(directory, 'catalog.local.json'), 'utf8'))
     if (route === '/api/private/library') {
       json(200, { books: catalog.books, assets: catalog.assets.map(({ path: _path, ...asset }) => asset) })
@@ -82,7 +98,7 @@ async function serve(request: IncomingMessage, response: ServerResponse, next: (
     response.on('close', () => stream.destroy())
     stream.pipe(response)
   } catch {
-    json(503, { error: 'Private library unavailable. Run the local import command to connect your books.' })
+    json(503, { error: 'Local test content is unavailable. Please try again.' })
   }
 }
 
